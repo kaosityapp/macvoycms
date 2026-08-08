@@ -31,11 +31,11 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               <a href="https://facebook.com/macvoyirishdance" target="_blank" rel="noopener noreferrer" className="hover:text-brand-pink">
                 Facebook
               </a>
-              <a href="https://twitter.com/macvoydance" target="_blank" rel="noopener noreferrer" className="hover:text-brand-pink">
-                Twitter/X
+              <a href="https://instagram.com/macvoyirishdance" target="_blank" rel="noopener noreferrer" className="hover:text-brand-pink">
+                Instagram
               </a>
-              <Link href="/login" className="hover:text-brand-pink">
-                Parent Login
+              <Link href="/dashboard" className="hover:text-brand-pink">
+                My Account
               </Link>
             </div>
           </div>

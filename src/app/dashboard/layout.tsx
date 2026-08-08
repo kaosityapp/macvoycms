@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="mx-auto max-w-4xl px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href="/dashboard" className="text-lg font-bold text-brand-pink">
-              MacVoy Parent Portal
+              My Account
             </Link>
             <div className="flex items-center gap-4">
               {account && (

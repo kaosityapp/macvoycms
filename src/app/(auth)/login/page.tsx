@@ -11,7 +11,7 @@ export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-brand-pink">Parent login</h1>
+        <h1 className="text-xl font-bold text-brand-pink">Log in</h1>
         <p className="mt-1 text-sm text-brand-ink/70">
           Sign in to manage your dancers, schedules, and payments.
         </p>

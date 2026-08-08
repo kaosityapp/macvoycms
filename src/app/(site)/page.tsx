@@ -6,12 +6,12 @@ export default function WelcomePage() {
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-top"
           style={{ backgroundImage: "url('/images/gallery/group.jpg')" }}
           aria-hidden
         />
         <div className="absolute inset-0 bg-brand-ink/70" aria-hidden />
-        <div className="relative mx-auto max-w-6xl px-6 py-24 text-center text-white sm:py-32">
+        <div className="relative mx-auto max-w-6xl px-6 pb-16 pt-36 text-center text-white sm:pb-20 sm:pt-44">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-white/80">Fáilte!</p>
           <h1 className="mt-3 text-4xl font-bold sm:text-5xl">Welcome to MacVoy School of Irish Dance</h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-white/90">
