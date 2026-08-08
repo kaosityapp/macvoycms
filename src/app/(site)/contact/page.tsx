@@ -28,8 +28,8 @@ export default function ContactPage() {
               </a>
             </li>
             <li>
-              <a href="https://instagram.com/macvoyirishdance" target="_blank" rel="noopener noreferrer" className="text-brand-pink hover:underline">
-                instagram.com/macvoyirishdance
+              <a href="https://www.instagram.com/macvoyschoolofirishdance/" target="_blank" rel="noopener noreferrer" className="text-brand-pink hover:underline">
+                instagram.com/macvoyschoolofirishdance
               </a>
             </li>
           </ul>

@@ -31,7 +31,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               <a href="https://facebook.com/macvoyirishdance" target="_blank" rel="noopener noreferrer" className="hover:text-brand-pink">
                 Facebook
               </a>
-              <a href="https://instagram.com/macvoyirishdance" target="_blank" rel="noopener noreferrer" className="hover:text-brand-pink">
+              <a href="https://www.instagram.com/macvoyschoolofirishdance/" target="_blank" rel="noopener noreferrer" className="hover:text-brand-pink">
                 Instagram
               </a>
               <Link href="/dashboard" className="hover:text-brand-pink">
