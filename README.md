@@ -65,7 +65,7 @@ Sentry.
 | 3. Registration + auth | ✅ Login, reset, per-dancer form, consents, plan selection |
 | 4. Parent dashboard | ✅ Calendars, payments/receipts, announcement archive |
 | 5. Admin / CMS | ✅ Seasons/classes, families/billing, announcements, CSV export |
-| 6. Integrations | Helcim webhooks, Loops sends/stats, Sentry |
+| 6. Integrations | ✅ Sentry + Loops wired · Helcim pending keys + deploy |
 
 **Admin notes / deferred:**
 - **Public-site page editing** (CMS for the §4 marketing pages) ships with the
@@ -161,12 +161,18 @@ their own family account.
 
 ---
 
-## Integrations — not yet configured
+## Integrations
 
-No API keys are set up yet. Each integration lives behind an interface in
-`src/lib/integrations/` and throws a clear "not configured" error until its
-env var is present:
+- **Sentry** ✅ wired (`sentry.*.config.ts`, `src/instrumentation*.ts`,
+  `withSentryConfig` in `next.config.mjs`). Active in production only. Set
+  `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` for readable stack traces.
+- **Loops** ✅ wired (`src/lib/integrations/loops.ts`). Needs the sending domain
+  verified and the `LOOPS_TID_*` transactional template ids to actually send.
+  Announcement open/click stats aren't available for transactional sends (would
+  need Loops Campaigns).
+- **Helcim** — interface in `src/lib/integrations/helcim.ts`; charging + webhook
+  handler come once the account keys are in and the app is deployed (needs a
+  public webhook URL). Card capture will use HelcimPay.js (no raw card data on
+  our servers).
 
-- **Helcim** — `HELCIM_API_TOKEN`, `HELCIM_WEBHOOK_SECRET`
-- **Loops** — `LOOPS_API_KEY`
-- **Sentry** — `NEXT_PUBLIC_SENTRY_DSN`
+Deployment steps: see `DEPLOY.md`.
