@@ -10,8 +10,9 @@ export interface ActionState {
   success?: string;
 }
 
-function revalidateFamily(familyId: string) {
-  if (familyId) revalidatePath(`/admin/families/${familyId}`);
+function revalidateDancer(memberId: string) {
+  revalidatePath('/admin/families');
+  if (memberId) revalidatePath(`/admin/families/${memberId}`);
 }
 
 /** Enroll a dancer into a class, then recalc their default plan. */
@@ -24,7 +25,7 @@ export async function enrollDancer(formData: FormData): Promise<void> {
   const supabase = await createClient();
   await supabase.from('enrollments').insert({ family_member_id: memberId, class_id: classId });
   await recalcDefaultPlanForMember(supabase, memberId);
-  revalidateFamily(familyId);
+  revalidateDancer(memberId);
 }
 
 /** Remove a dancer from a class (soft), then recalc their default plan. */
@@ -37,7 +38,7 @@ export async function removeEnrollment(formData: FormData): Promise<void> {
   const supabase = await createClient();
   await supabase.from('enrollments').update({ status: 'removed' }).eq('id', enrollmentId);
   if (memberId) await recalcDefaultPlanForMember(supabase, memberId);
-  revalidateFamily(familyId);
+  revalidateDancer(memberId);
 }
 
 /** Move a dancer from one class to another; tuition auto-recalculates. */
@@ -58,7 +59,7 @@ export async function reassignEnrollment(formData: FormData): Promise<void> {
 
   await supabase.from('enrollments').update({ status: 'removed' }).eq('id', enrollmentId);
   await recalcDefaultPlanForMember(supabase, memberId);
-  revalidateFamily(familyId);
+  revalidateDancer(memberId);
 }
 
 /**
@@ -89,7 +90,7 @@ export async function stopBilling(formData: FormData): Promise<void> {
     }
     await supabase.from('payment_plans').update({ status: 'stopped' }).eq('id', plan.id);
   }
-  revalidateFamily(familyId);
+  revalidateDancer(memberId);
 }
 
 /** Create a custom payment plan, superseding the dancer's active default plan. */
@@ -132,7 +133,7 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
   });
   if (error) return { error: 'Could not create the custom plan.' };
 
-  revalidateFamily(familyId);
+  revalidateDancer(memberId);
   return { success: 'Custom plan created.' };
 }
 
