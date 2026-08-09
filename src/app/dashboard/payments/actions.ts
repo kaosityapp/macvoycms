@@ -31,7 +31,7 @@ export async function startPayment(input: {
   // owns_family_member() (via RLS) confirms this is the caller's own dancer.
   const { data: family } = await supabase
     .from('family_members')
-    .select('family_account_id, family_accounts(parent1_email)')
+    .select('family_account_id, family_accounts(parent1_name, parent1_email)')
     .eq('id', input.memberId)
     .maybeSingle();
   if (!family) return { error: 'Dancer not found.' };
@@ -44,6 +44,7 @@ export async function startPayment(input: {
       amount: input.amount,
       reference,
       description: 'MacVoy Tuition Payment',
+      customerName: (family as any).family_accounts?.parent1_name,
       customerEmail: (family as any).family_accounts?.parent1_email,
       saveCard: input.saveCard,
     });

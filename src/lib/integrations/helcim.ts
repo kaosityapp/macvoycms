@@ -57,6 +57,8 @@ export interface InitCheckoutInput {
   reference: string;
   /** Line-item description shown on the Helcim invoice/receipt. */
   description?: string;
+  /** Required by Helcim as customerRequest.contactName once customerRequest is sent. */
+  customerName?: string;
   customerEmail?: string;
   /** Parent opted in to save the card for future automatic charges. */
   saveCard?: boolean;
@@ -92,8 +94,14 @@ export async function initializeCheckout(input: InitCheckoutInput): Promise<Init
           },
         ],
       },
-      ...(input.customerEmail
-        ? { customerRequest: { email: input.customerEmail } }
+      // customerRequest requires contactName once included at all.
+      ...(input.customerName || input.customerEmail
+        ? {
+            customerRequest: {
+              contactName: input.customerName || input.customerEmail,
+              ...(input.customerEmail ? { email: input.customerEmail } : {}),
+            },
+          }
         : {}),
       ...(input.saveCard ? { setAsDefaultPaymentMethod: 1 } : {}),
     }),
