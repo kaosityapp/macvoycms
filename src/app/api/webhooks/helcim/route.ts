@@ -14,6 +14,15 @@ import { verifyWebhookSignature, getCardTransaction } from '@/lib/integrations/h
  * helcim_transaction_id) → optionally capture a stored card token if the
  * family opted in to automatic future charges.
  */
+/**
+ * Plain reachability check — some webhook dashboards (possibly Helcim's own
+ * config-save flow) probe the Deliver URL with a GET before accepting it.
+ * No signature check here; it does nothing but confirm the endpoint exists.
+ */
+export async function GET() {
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
 
