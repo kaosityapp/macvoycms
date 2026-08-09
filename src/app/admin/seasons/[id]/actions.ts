@@ -100,3 +100,149 @@ export async function createClass(_prev: ActionState, formData: FormData): Promi
   revalidatePath(`/admin/seasons/${seasonId}`);
   return { success: `Class “${name}” added with ${sessionDates.length} classes.` };
 }
+
+// ---------------------------------------------------------------------------
+// CSV bulk import
+// ---------------------------------------------------------------------------
+
+const DAY_INDEX: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
+const DAY_NAME = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const LEVELS = new Set(['beginner', 'advanced', 'competitive', 'adult', 'ceili']);
+const SHOES = new Set(['soft', 'hard', 'soft-hard', 'n/a']);
+
+/** Minimal CSV parser (handles quoted fields and embedded commas/quotes). */
+function parseCsv(text: string): string[][] {
+  const s = text.replace(/\r\n?/g, '\n');
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((f) => f.trim() !== ''));
+}
+
+function datesForRange(startIso: string, endIso: string, dow: number): string[] {
+  const start = Date.parse(`${startIso}T00:00:00Z`);
+  const end = Date.parse(`${endIso}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return [];
+  const out: string[] = [];
+  for (let t = start, i = 0; t <= end && i < 500; t += 86_400_000, i++) {
+    const d = new Date(t);
+    if (d.getUTCDay() === dow) out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+export async function importClasses(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const seasonId = String(formData.get('season_id') ?? '');
+  if (!seasonId) return { error: 'Missing season.' };
+
+  const file = formData.get('file');
+  let csv = '';
+  if (file && typeof (file as { text?: unknown }).text === 'function') {
+    csv = await (file as File).text();
+  }
+  if (!csv.trim()) return { error: 'Choose a CSV file to import.' };
+
+  const rows = parseCsv(csv);
+  if (rows.length < 2) return { error: 'CSV needs a header row and at least one class row.' };
+
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const col = (name: string) => header.indexOf(name);
+  const required = ['name', 'location', 'day_of_week', 'start_date', 'end_date', 'start_time', 'duration_minutes', 'hourly_rate'];
+  const missing = required.filter((r) => col(r) === -1);
+  if (missing.length) return { error: `CSV is missing columns: ${missing.join(', ')}.` };
+
+  const supabase = await createClient();
+  const { data: locs } = await supabase.from('locations').select('id, name');
+  const locMap = new Map((locs ?? []).map((l) => [l.name.trim().toLowerCase(), l.id]));
+
+  const get = (r: string[], name: string) => (col(name) >= 0 ? (r[col(name)] ?? '').trim() : '');
+  let created = 0;
+  const errors: string[] = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const name = get(r, 'name');
+    const locId = locMap.get(get(r, 'location').toLowerCase());
+    const dow = DAY_INDEX[get(r, 'day_of_week').toLowerCase()];
+    const startDate = get(r, 'start_date');
+    const endDate = get(r, 'end_date');
+    const startTime = get(r, 'start_time');
+    const duration = Number(get(r, 'duration_minutes'));
+    const hourly = Number(get(r, 'hourly_rate'));
+
+    if (!name) { errors.push(`Row ${i + 1}: missing name`); continue; }
+    if (!locId) { errors.push(`Row ${i + 1}: unknown location “${get(r, 'location')}”`); continue; }
+    if (dow == null) { errors.push(`Row ${i + 1}: invalid day_of_week`); continue; }
+    if (!startDate || !endDate || !startTime || !Number.isFinite(duration) || duration <= 0) {
+      errors.push(`Row ${i + 1}: bad dates/time/duration`);
+      continue;
+    }
+
+    const endTime = addMinutesToTime(startTime, duration);
+    const dates = datesForRange(startDate, endDate, dow);
+    const level = LEVELS.has(get(r, 'level').toLowerCase()) ? get(r, 'level').toLowerCase() : 'beginner';
+    const shoe = SHOES.has(get(r, 'shoe_type').toLowerCase()) ? get(r, 'shoe_type').toLowerCase() : 'soft';
+    const ageMin = get(r, 'age_min') ? Number(get(r, 'age_min')) : null;
+    const ageMax = get(r, 'age_max') ? Number(get(r, 'age_max')) : null;
+
+    const { data: cls, error } = await supabase
+      .from('classes')
+      .insert({
+        season_id: seasonId,
+        location_id: locId,
+        day_of_week: DAY_NAME[dow],
+        start_time: startTime,
+        end_time: endTime,
+        name,
+        level,
+        shoe_type: shoe,
+        age_min: ageMin,
+        age_max: ageMax,
+        is_private: false,
+        start_date: startDate,
+        end_date: endDate,
+        hourly_rate: Number.isFinite(hourly) ? hourly : null,
+        total_sessions: dates.length,
+      })
+      .select('id')
+      .single();
+    if (error || !cls) { errors.push(`Row ${i + 1}: could not create “${name}”`); continue; }
+
+    if (dates.length) {
+      await supabase.from('class_sessions').insert(
+        dates.map((d) => ({
+          class_id: cls.id,
+          session_date: d,
+          start_time: startTime,
+          end_time: endTime,
+          location_id: locId,
+          status: 'scheduled',
+        })),
+      );
+    }
+    created += 1;
+  }
+
+  revalidatePath(`/admin/seasons/${seasonId}`);
+  if (created === 0) return { error: errors[0] ?? 'No classes imported.' };
+  return {
+    success: `Imported ${created} class${created === 1 ? '' : 'es'}.${
+      errors.length ? ` Skipped ${errors.length}: ${errors.slice(0, 3).join('; ')}` : ''
+    }`,
+  };
+}

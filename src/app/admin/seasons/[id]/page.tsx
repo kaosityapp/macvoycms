@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { formatDateLong, formatTime, money } from '@/lib/format';
 import { CreateClassForm } from './CreateClassForm';
+import { ImportClassesForm } from './ImportClassesForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +96,8 @@ export default async function SeasonDetailPage({ params }: { params: Promise<{ i
       </section>
 
       <CreateClassForm locations={(locationsRes.data ?? []) as any[]} members={members} />
+
+      <ImportClassesForm seasonId={season.id} />
     </div>
   );
 }
