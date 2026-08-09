@@ -430,6 +430,69 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_intents: {
+        Row: {
+          id: string
+          family_member_id: string
+          payment_plan_id: string | null
+          installment_index: number | null
+          category: string
+          amount: number
+          reference: string
+          checkout_token: string | null
+          secret_token: string | null
+          status: string
+          helcim_transaction_id: string | null
+          save_card: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          family_member_id: string
+          payment_plan_id?: string | null
+          installment_index?: number | null
+          category?: string
+          amount: number
+          reference: string
+          checkout_token?: string | null
+          secret_token?: string | null
+          status?: string
+          helcim_transaction_id?: string | null
+          save_card?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          family_member_id?: string
+          payment_plan_id?: string | null
+          installment_index?: number | null
+          category?: string
+          amount?: number
+          reference?: string
+          checkout_token?: string | null
+          secret_token?: string | null
+          status?: string
+          helcim_transaction_id?: string | null
+          save_card?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intents_family_member_id_fkey"
+            columns: ["family_member_id"]
+            isOneToOne: false
+            referencedRelation: "family_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_intents_payment_plan_id_fkey"
+            columns: ["payment_plan_id"]
+            isOneToOne: false
+            referencedRelation: "payment_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           amount: number
@@ -473,6 +536,9 @@ export type Database = {
           status: string
           total_amount: number
           updated_at: string
+          stored_card_token: string | null
+          stored_customer_code: string | null
+          auto_charge: boolean
         }
         Insert: {
           created_at?: string
@@ -484,6 +550,9 @@ export type Database = {
           status?: string
           total_amount: number
           updated_at?: string
+          stored_card_token?: string | null
+          stored_customer_code?: string | null
+          auto_charge?: boolean
         }
         Update: {
           created_at?: string
@@ -495,6 +564,9 @@ export type Database = {
           status?: string
           total_amount?: number
           updated_at?: string
+          stored_card_token?: string | null
+          stored_customer_code?: string | null
+          auto_charge?: boolean
         }
         Relationships: [
           {

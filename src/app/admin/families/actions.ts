@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { recalcDefaultPlanForMember } from '@/lib/admin/billing';
-import { isHelcimConfigured, stopSubscription } from '@/lib/integrations/helcim';
 
 export interface ActionState {
   error?: string;
@@ -65,32 +64,23 @@ export async function reassignEnrollment(formData: FormData): Promise<void> {
 
 /**
  * Stop future billing for a dancer. Halts scheduled charges only — never a
- * refund (spec §3.3). Requires an explicit typed confirmation.
+ * refund (spec §3.3). Requires an explicit typed confirmation. There is no
+ * server-side "subscription" object to cancel with Helcim — recurring charges
+ * are our own cron against a stored card token (see payment_plans.auto_charge)
+ * — so stopping just disables that flag and marks the plan stopped.
  */
 export async function stopBilling(formData: FormData): Promise<void> {
   const memberId = String(formData.get('member_id') ?? '');
-  const familyId = String(formData.get('family_id') ?? '');
   const confirm = String(formData.get('confirm') ?? '');
   if (!memberId || confirm !== 'STOP') return;
 
   const supabase = await createClient();
-  const { data: plans } = await supabase
+  await supabase
     .from('payment_plans')
-    .select('id, helcim_subscription_id')
+    .update({ status: 'stopped', auto_charge: false })
     .eq('family_member_id', memberId)
     .eq('status', 'active');
 
-  for (const plan of plans ?? []) {
-    if (isHelcimConfigured() && plan.helcim_subscription_id) {
-      try {
-        await stopSubscription(plan.helcim_subscription_id);
-      } catch {
-        // Leave the plan active if the processor call fails, so state stays honest.
-        continue;
-      }
-    }
-    await supabase.from('payment_plans').update({ status: 'stopped' }).eq('id', plan.id);
-  }
   revalidateDancer(memberId);
 }
 

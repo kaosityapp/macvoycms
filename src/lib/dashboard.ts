@@ -26,7 +26,9 @@ export interface SessionEntry {
 export interface Installment {
   memberId: string;
   memberName: string;
+  planId: string;
   planType: string;
+  installmentIndex: number;
   date: string;
   amount: number;
 }
@@ -137,7 +139,7 @@ export async function getUpcomingInstallments(
   const supabase = await createClient();
   const { data } = await supabase
     .from('family_members')
-    .select('id, first_name, last_name, payment_plans(plan_type, status, installment_schedule)')
+    .select('id, first_name, last_name, payment_plans(id, plan_type, status, installment_schedule)')
     .eq('family_account_id', accountId);
 
   const out: Installment[] = [];
@@ -145,16 +147,18 @@ export async function getUpcomingInstallments(
     for (const plan of m.payment_plans ?? []) {
       if (plan.status !== 'active') continue;
       const schedule = Array.isArray(plan.installment_schedule) ? plan.installment_schedule : [];
-      for (const item of schedule) {
-        if (!item?.date || item.date < todayIso) continue;
+      schedule.forEach((item: any, idx: number) => {
+        if (!item?.date || item.date < todayIso) return;
         out.push({
           memberId: m.id,
           memberName: `${m.first_name} ${m.last_name}`,
+          planId: plan.id,
           planType: plan.plan_type,
+          installmentIndex: idx,
           date: item.date,
           amount: Number(item.amount ?? 0),
         });
-      }
+      });
     }
   }
   out.sort((a, b) => a.date.localeCompare(b.date));
@@ -183,6 +187,30 @@ export async function getReceipts(accountId: string): Promise<Receipt[]> {
     }
   }
   out.sort((a, b) => (b.paidAt ?? '').localeCompare(a.paidAt ?? ''));
+  return out;
+}
+
+export interface AutoChargePlan {
+  planId: string;
+  memberName: string;
+}
+
+/** Plans with automatic recurring charges enabled, for the opt-out UI. */
+export async function getAutoChargePlans(accountId: string): Promise<AutoChargePlan[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('family_members')
+    .select('first_name, last_name, payment_plans(id, status, auto_charge)')
+    .eq('family_account_id', accountId);
+
+  const out: AutoChargePlan[] = [];
+  for (const m of (data ?? []) as any[]) {
+    for (const plan of m.payment_plans ?? []) {
+      if (plan.status === 'active' && plan.auto_charge) {
+        out.push({ planId: plan.id, memberName: `${m.first_name} ${m.last_name}` });
+      }
+    }
+  }
   return out;
 }
 

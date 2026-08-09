@@ -1,8 +1,10 @@
 import { getFamilyAccount } from '@/lib/auth';
-import { getUpcomingInstallments, getReceipts } from '@/lib/dashboard';
+import { getUpcomingInstallments, getReceipts, getAutoChargePlans } from '@/lib/dashboard';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { todayIso } from '@/lib/billing/dueDates';
 import { money, formatDateLong, formatTimestamp } from '@/lib/format';
+import { PayNowButton } from './PayNowButton';
+import { AutoChargeSection } from './AutoChargeSection';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,9 +15,10 @@ export default async function PaymentsPage() {
   }
 
   const today = todayIso();
-  const [upcoming, receipts] = await Promise.all([
+  const [upcoming, receipts, autoChargePlans] = await Promise.all([
     getUpcomingInstallments(account.id, today),
     getReceipts(account.id),
+    getAutoChargePlans(account.id),
   ]);
   const canPayOnline = isHelcimConfigured();
   const upcomingTotal = upcoming.reduce((sum, i) => sum + i.amount, 0);
@@ -30,6 +33,8 @@ export default async function PaymentsPage() {
           processor. Your scheduled amounts are shown below for reference.
         </div>
       )}
+
+      <AutoChargeSection plans={autoChargePlans} />
 
       {/* Upcoming */}
       <section className="space-y-3">
@@ -55,14 +60,23 @@ export default async function PaymentsPage() {
                     {item.planType === 'quarterly' ? 'Quarterly' : 'Paid in full'}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  disabled={!canPayOnline}
-                  className="rounded-md bg-brand-pink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  title={canPayOnline ? undefined : 'Online payment coming soon'}
-                >
-                  Pay now
-                </button>
+                {canPayOnline ? (
+                  <PayNowButton
+                    memberId={item.memberId}
+                    paymentPlanId={item.planId}
+                    installmentIndex={item.installmentIndex}
+                    amount={item.amount}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-md bg-brand-pink px-4 py-2 text-sm font-semibold text-white opacity-50"
+                    title="Online payment coming soon"
+                  >
+                    Pay now
+                  </button>
+                )}
               </li>
             ))}
           </ul>
