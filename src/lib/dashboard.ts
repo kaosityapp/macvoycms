@@ -84,6 +84,7 @@ export async function getSessionsInRange(
     .in('class_id', classIds)
     .gte('session_date', firstIso)
     .lte('session_date', lastIso)
+    .neq('status', 'removed')
     .order('session_date', { ascending: true })
     .order('start_time', { ascending: true });
 
@@ -108,7 +109,7 @@ export async function getNextSession(classIds: string[], todayIso: string): Prom
     .select('id, class_id, session_date, start_time, end_time, status, note, class:classes(name)')
     .in('class_id', classIds)
     .gte('session_date', todayIso)
-    .eq('status', 'scheduled')
+    .in('status', ['scheduled', 'rescheduled'])
     .order('session_date', { ascending: true })
     .order('start_time', { ascending: true })
     .limit(1)

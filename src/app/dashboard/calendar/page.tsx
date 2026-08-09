@@ -161,15 +161,25 @@ export default async function CalendarPage({
                           <div
                             key={s.id}
                             className={`rounded px-1.5 py-1 text-[11px] leading-tight ${
-                              cancelled
-                                ? 'bg-red-50 text-red-400 line-through'
-                                : 'bg-brand-pink/10 text-brand-ink'
+                              cancelled ? 'bg-red-50' : 'bg-brand-pink/10'
                             }`}
-                            title={s.note ?? undefined}
                           >
-                            <div className="font-medium">{s.className}</div>
-                            <div className="text-brand-ink/60">{formatTime(s.startTime)}</div>
-                            {selectedDancer === 'all' && tags.length > 0 && (
+                            <div
+                              className={`font-medium ${
+                                cancelled ? 'text-red-400 line-through' : 'text-brand-ink'
+                              }`}
+                            >
+                              {s.className}
+                            </div>
+                            <div
+                              className={cancelled ? 'text-red-400/70 line-through' : 'text-brand-ink/60'}
+                            >
+                              {formatTime(s.startTime)}
+                            </div>
+                            {cancelled && s.note && (
+                              <div className="mt-0.5 font-medium text-red-600">{s.note}</div>
+                            )}
+                            {selectedDancer === 'all' && !cancelled && tags.length > 0 && (
                               <div className="text-brand-pink">{tags.join(', ')}</div>
                             )}
                           </div>

@@ -54,15 +54,30 @@ export async function updateClass(_prev: ActionState, formData: FormData): Promi
   return { success: 'Class updated. Enrolled dancers’ tuition has been recalculated.' };
 }
 
-export async function updateSession(formData: FormData): Promise<void> {
+export async function updateSession(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const sessionId = String(formData.get('session_id') ?? '');
   const classId = String(formData.get('class_id') ?? '');
   const status = String(formData.get('status') ?? 'scheduled');
   const note = String(formData.get('note') ?? '').trim() || null;
-  if (!sessionId) return;
+  const newDate = String(formData.get('new_date') ?? '').trim();
+  if (!sessionId) return { error: 'Missing session.' };
+
+  const update: { status: string; note: string | null; session_date?: string } = { status, note };
+  // Rescheduling moves the class to a new date.
+  if (status === 'rescheduled') {
+    if (!newDate) return { error: 'Pick a new date to reschedule to.' };
+    update.session_date = newDate;
+  }
 
   const supabase = await createClient();
-  await supabase.from('class_sessions').update({ status, note }).eq('id', sessionId);
+  const { error } = await supabase.from('class_sessions').update(update).eq('id', sessionId);
+  if (error) {
+    if ((error as { code?: string }).code === '23505') {
+      return { error: 'That date already has a class for this session.' };
+    }
+    return { error: 'Could not update the session.' };
+  }
 
   if (classId) revalidatePath(`/admin/classes/${classId}`);
+  return { success: 'Saved.' };
 }
