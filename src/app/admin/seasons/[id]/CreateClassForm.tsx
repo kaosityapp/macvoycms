@@ -39,9 +39,16 @@ function money(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-export function CreateClassForm({ locations }: { locations: { id: string; name: string }[] }) {
+export function CreateClassForm({
+  locations,
+  members,
+}: {
+  locations: { id: string; name: string }[];
+  members: { id: string; name: string; family: string }[];
+}) {
   const [state, action] = useActionState<ActionState, FormData>(createClass, {});
 
+  const [isPrivate, setIsPrivate] = useState(false);
   const [day, setDay] = useState('Monday');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -135,6 +142,39 @@ export function CreateClassForm({ locations }: { locations: { id: string; name: 
         </Field>
       </div>
 
+      {/* Private lesson → assign a dancer */}
+      <div className="space-y-3 rounded-md border border-brand-ink/10 p-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            name="is_private"
+            checked={isPrivate}
+            onChange={(e) => setIsPrivate(e.target.checked)}
+            className="h-4 w-4 accent-brand-pink"
+          />
+          Individual / private lesson
+        </label>
+        {isPrivate && (
+          <Field
+            label="For which dancer?"
+            htmlFor="family_member_id"
+            required
+            hint="A private lesson shows only on this dancer’s calendar — never publicly or in registration."
+          >
+            <select id="family_member_id" name="family_member_id" required defaultValue="" className={inputClass}>
+              <option value="" disabled>
+                Select a dancer…
+              </option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.family})
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+      </div>
+
       {/* Optional descriptors */}
       <details className="rounded-md border border-brand-ink/10 p-3">
         <summary className="cursor-pointer text-sm font-medium text-brand-pink">
@@ -159,10 +199,6 @@ export function CreateClassForm({ locations }: { locations: { id: string; name: 
               <input id="age_max" name="age_max" type="number" className={inputClass} />
             </Field>
           </div>
-          <label className="flex items-center gap-2 self-end text-sm">
-            <input type="checkbox" name="is_private" className="h-4 w-4 accent-brand-pink" />
-            Individual / private lesson
-          </label>
         </div>
       </details>
 

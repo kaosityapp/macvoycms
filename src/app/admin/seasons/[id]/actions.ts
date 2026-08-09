@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { recalcDefaultPlanForMember } from '@/lib/admin/billing';
 
 export interface ActionState {
   error?: string;
@@ -38,11 +39,16 @@ export async function createClass(_prev: ActionState, formData: FormData): Promi
   const hourlyRate = num(formData.get('hourly_rate'));
   const sessionDates = formData.getAll('session_dates').map(String).filter(Boolean);
   const totalSessions = num(formData.get('total_sessions')) ?? sessionDates.length;
+  const isPrivate = String(formData.get('is_private') ?? '') === 'on';
+  const familyMemberId = String(formData.get('family_member_id') ?? '');
 
   if (!name || !locationId || !startTime || !durationMin || durationMin <= 0) {
     return { error: 'Name, location, start time, and duration are required.' };
   }
   if (!startDate || !endDate) return { error: 'Start and end dates are required.' };
+  if (isPrivate && !familyMemberId) {
+    return { error: 'Select the dancer this private lesson is for.' };
+  }
 
   const endTime = addMinutesToTime(startTime, durationMin);
 
@@ -60,7 +66,7 @@ export async function createClass(_prev: ActionState, formData: FormData): Promi
       shoe_type: String(formData.get('shoe_type') ?? '') || 'soft',
       age_min: num(formData.get('age_min')),
       age_max: num(formData.get('age_max')),
-      is_private: String(formData.get('is_private') ?? '') === 'on',
+      is_private: isPrivate,
       start_date: startDate,
       end_date: endDate,
       hourly_rate: hourlyRate,
@@ -82,6 +88,13 @@ export async function createClass(_prev: ActionState, formData: FormData): Promi
     }));
     const { error: sessErr } = await supabase.from('class_sessions').insert(rows);
     if (sessErr) return { error: 'Class created, but adding the dates failed.' };
+  }
+
+  // Private lesson → enroll only the chosen dancer, so it appears on their
+  // calendar (and nowhere else) and feeds their tuition.
+  if (isPrivate && familyMemberId) {
+    await supabase.from('enrollments').insert({ family_member_id: familyMemberId, class_id: cls.id });
+    await recalcDefaultPlanForMember(supabase, familyMemberId);
   }
 
   revalidatePath(`/admin/seasons/${seasonId}`);

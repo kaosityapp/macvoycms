@@ -19,15 +19,25 @@ export default async function SeasonDetailPage({ params }: { params: Promise<{ i
     .maybeSingle();
   if (!season) notFound();
 
-  const [classesRes, locationsRes] = await Promise.all([
+  const [classesRes, locationsRes, membersRes] = await Promise.all([
     supabase
       .from('classes')
       .select(
-        'id, name, day_of_week, start_time, end_time, level, hourly_rate, total_sessions, location:locations(name)',
+        'id, name, day_of_week, start_time, end_time, is_private, hourly_rate, total_sessions, location:locations(name)',
       )
       .eq('season_id', id),
     supabase.from('locations').select('id, name').order('name'),
+    supabase
+      .from('family_members')
+      .select('id, first_name, last_name, family:family_accounts(parent1_name)')
+      .order('last_name'),
   ]);
+
+  const members = ((membersRes.data ?? []) as any[]).map((m) => ({
+    id: m.id,
+    name: `${m.first_name} ${m.last_name}`,
+    family: m.family?.parent1_name ?? '',
+  }));
 
   const classes = ((classesRes.data ?? []) as any[]).sort(
     (a, b) =>
@@ -58,7 +68,14 @@ export default async function SeasonDetailPage({ params }: { params: Promise<{ i
                 className="flex items-center justify-between px-5 py-3 hover:bg-brand-pink/5"
               >
                 <div>
-                  <div className="font-medium text-brand-ink">{c.name}</div>
+                  <div className="font-medium text-brand-ink">
+                    {c.name}
+                    {c.is_private && (
+                      <span className="ml-2 rounded bg-brand-pink/10 px-1.5 py-0.5 text-xs font-semibold text-brand-pink">
+                        Private
+                      </span>
+                    )}
+                  </div>
                   <div className="text-sm text-brand-ink/60">
                     {c.day_of_week} {formatTime(c.start_time)}–{formatTime(c.end_time)} ·{' '}
                     {c.location?.name}
@@ -77,7 +94,7 @@ export default async function SeasonDetailPage({ params }: { params: Promise<{ i
         </ul>
       </section>
 
-      <CreateClassForm locations={(locationsRes.data ?? []) as any[]} />
+      <CreateClassForm locations={(locationsRes.data ?? []) as any[]} members={members} />
     </div>
   );
 }

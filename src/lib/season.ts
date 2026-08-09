@@ -68,6 +68,7 @@ export async function getSeasonClassesGrouped(seasonId: string): Promise<Locatio
     .from('classes')
     .select('*, location:locations(id, name)')
     .eq('season_id', seasonId)
+    .eq('is_private', false) // private lessons never show publicly or in registration
     .order('start_time', { ascending: true });
 
   const rows = (data ?? []) as unknown as ClassWithLocation[];
