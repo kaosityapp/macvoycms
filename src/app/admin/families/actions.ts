@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { recalcDefaultPlanForMember } from '@/lib/admin/billing';
 import { isHelcimConfigured, stopSubscription } from '@/lib/integrations/helcim';
@@ -149,4 +150,42 @@ export async function sendPasswordReset(_prev: ActionState, formData: FormData):
   });
   if (error) return { error: 'Could not send the reset email.' };
   return { success: `Password reset email sent to ${email}.` };
+}
+
+/** Remove Student: soft-disable — mark removed, drop enrollments, stop billing. */
+export async function removeStudent(formData: FormData): Promise<void> {
+  const memberId = String(formData.get('member_id') ?? '');
+  if (!memberId) return;
+  const supabase = await createClient();
+  await supabase.from('family_members').update({ status: 'removed' }).eq('id', memberId);
+  await supabase
+    .from('enrollments')
+    .update({ status: 'removed' })
+    .eq('family_member_id', memberId)
+    .neq('status', 'removed');
+  await supabase
+    .from('payment_plans')
+    .update({ status: 'stopped' })
+    .eq('family_member_id', memberId)
+    .eq('status', 'active');
+  revalidateDancer(memberId);
+}
+
+/** Reactivate a soft-removed dancer (does not restore old enrollments). */
+export async function reactivateStudent(formData: FormData): Promise<void> {
+  const memberId = String(formData.get('member_id') ?? '');
+  if (!memberId) return;
+  const supabase = await createClient();
+  await supabase.from('family_members').update({ status: 'active' }).eq('id', memberId);
+  revalidateDancer(memberId);
+}
+
+/** Delete: permanently remove the dancer and all their records (cascades). */
+export async function deleteDancer(formData: FormData): Promise<void> {
+  const memberId = String(formData.get('member_id') ?? '');
+  if (!memberId) return;
+  const supabase = await createClient();
+  await supabase.from('family_members').delete().eq('id', memberId);
+  revalidatePath('/admin/families');
+  redirect('/admin/families');
 }

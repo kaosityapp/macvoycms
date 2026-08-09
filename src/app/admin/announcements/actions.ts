@@ -1,13 +1,37 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { isLoopsConfigured, sendAnnouncement as loopsSend } from '@/lib/integrations/loops';
 import type { AudienceType, Json } from '@/lib/types/database';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 export interface ActionState {
   error?: string;
+  success?: string;
+}
+
+/** Edit an existing announcement's subject/body (the verbatim source of truth). */
+export async function updateAnnouncement(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const id = String(formData.get('id') ?? '');
+  const subject = String(formData.get('subject') ?? '').trim();
+  const body = String(formData.get('body') ?? '').trim();
+  if (!id) return { error: 'Missing announcement.' };
+  if (!subject) return { error: 'Subject is required.' };
+  if (!body) return { error: 'Message is required.' };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('announcements')
+    .update({ subject, body: sanitizeHtml(body) })
+    .eq('id', id);
+  if (error) return { error: 'Could not save the announcement.' };
+
+  revalidatePath('/admin/announcements');
+  revalidatePath(`/admin/announcements/${id}`);
+  return { success: 'Saved.' };
 }
 
 const baseSchema = z.object({
@@ -50,7 +74,7 @@ export async function sendAnnouncement(_prev: ActionState, formData: FormData): 
     .from('announcements')
     .insert({
       subject: parsed.data.subject,
-      body: parsed.data.body,
+      body: sanitizeHtml(parsed.data.body),
       sender: 'debbie@macvoyirishdance.com',
       audience_type: audienceType,
       audience_ref: audienceRef as Json,

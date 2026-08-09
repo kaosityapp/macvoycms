@@ -46,9 +46,16 @@ export default async function AnnouncementDetailPage({
         </p>
       </header>
 
-      <div className="whitespace-pre-line rounded-lg border border-brand-ink/10 bg-white p-6 leading-relaxed text-brand-ink/90">
-        {announcement.body}
-      </div>
+      {/<[a-z][\s\S]*>/i.test(announcement.body) ? (
+        <div
+          className="rounded-lg border border-brand-ink/10 bg-white p-6 leading-relaxed text-brand-ink/90 [&_a]:text-brand-pink [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
+          dangerouslySetInnerHTML={{ __html: announcement.body }}
+        />
+      ) : (
+        <div className="whitespace-pre-line rounded-lg border border-brand-ink/10 bg-white p-6 leading-relaxed text-brand-ink/90">
+          {announcement.body}
+        </div>
+      )}
     </article>
   );
 }

@@ -22,7 +22,7 @@ export default async function DancersPage() {
   const { data: dancers } = await supabase
     .from('family_members')
     .select(
-      `id, first_name, last_name,
+      `id, first_name, last_name, status,
        family:family_accounts(parent1_email),
        payment_plans(total_amount, installment_schedule, status),
        payments(amount, paid_at)`,
@@ -36,6 +36,7 @@ export default async function DancersPage() {
       id: m.id,
       name: `${m.first_name} ${m.last_name}`,
       email: m.family?.parent1_email ?? '',
+      status: m.status,
       summary,
     };
   });
@@ -61,11 +62,16 @@ export default async function DancersPage() {
             </thead>
             <tbody className="divide-y divide-brand-ink/10">
               {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-brand-pink/5">
+                <tr key={r.id} className={`hover:bg-brand-pink/5 ${r.status === 'removed' ? 'opacity-50' : ''}`}>
                   <td className="px-5 py-3">
                     <Link href={`/admin/families/${r.id}`} className="font-medium text-brand-pink hover:underline">
                       {r.name}
                     </Link>
+                    {r.status === 'removed' && (
+                      <span className="ml-2 rounded bg-brand-ink/10 px-1.5 py-0.5 text-xs font-semibold text-brand-ink/50">
+                        Removed
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-brand-ink/70">{r.email}</td>
                   <td className="px-5 py-3">

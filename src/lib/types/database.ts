@@ -361,6 +361,7 @@ export type Database = {
           id: string
           last_name: string
           medical_notes: string | null
+          status: string
           updated_at: string
         }
         Insert: {
@@ -376,6 +377,7 @@ export type Database = {
           id?: string
           last_name: string
           medical_notes?: string | null
+          status?: string
           updated_at?: string
         }
         Update: {
@@ -391,6 +393,7 @@ export type Database = {
           id?: string
           last_name?: string
           medical_notes?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: [

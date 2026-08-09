@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getFamilyAccount } from '@/lib/auth';
 import { getAnnouncements, getReadAnnouncementIds } from '@/lib/dashboard';
 import { formatTimestamp } from '@/lib/format';
+import { stripHtml } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export default async function AnnouncementsPage() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-sm text-brand-ink/60">{a.body}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-brand-ink/60">{stripHtml(a.body)}</p>
                   <p className="mt-2 text-xs text-brand-ink/45">
                     {a.sent_at ? formatTimestamp(a.sent_at) : ''}
                   </p>

@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { sendAnnouncement, type ActionState } from '../actions';
 import { Field, FormError, SubmitButton, inputClass } from '@/components/ui';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import { formatTime } from '@/lib/format';
 
 type Audience = 'all' | 'location' | 'class' | 'individual';
@@ -50,9 +51,12 @@ export function AnnouncementComposer({
       <Field label="Subject" htmlFor="subject" required>
         <input id="subject" name="subject" required className={inputClass} />
       </Field>
-      <Field label="Message" htmlFor="body" required>
-        <textarea id="body" name="body" rows={8} required className={inputClass} />
-      </Field>
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-brand-ink">
+          Message<span className="text-red-600"> *</span>
+        </label>
+        <RichTextEditor name="body" />
+      </div>
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-brand-ink">Audience</legend>

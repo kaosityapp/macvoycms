@@ -42,17 +42,22 @@ export default async function AdminAnnouncementsPage() {
 
       <ul className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
         {(announcements ?? []).map((a: any) => (
-          <li key={a.id} className="flex items-center justify-between px-5 py-4">
-            <div>
-              <div className="font-medium text-brand-ink">{a.subject}</div>
-              <div className="text-sm text-brand-ink/60">
-                {AUDIENCE_LABEL[a.audience_type] ?? a.audience_type}
-                {a.sent_at ? ` · ${formatTimestamp(a.sent_at)}` : ' · draft'}
+          <li key={a.id}>
+            <Link
+              href={`/admin/announcements/${a.id}`}
+              className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-brand-pink/5"
+            >
+              <div>
+                <div className="font-medium text-brand-ink">{a.subject}</div>
+                <div className="text-sm text-brand-ink/60">
+                  {AUDIENCE_LABEL[a.audience_type] ?? a.audience_type}
+                  {a.sent_at ? ` · ${formatTimestamp(a.sent_at)}` : ' · draft'}
+                </div>
               </div>
-            </div>
-            <div className="text-sm text-brand-ink/50">
-              {loopsOn ? (a.loops_message_id ? 'Email sent' : 'In-app only') : 'Stats pending Loops'}
-            </div>
+              <div className="whitespace-nowrap text-sm text-brand-ink/50">
+                {loopsOn ? (a.loops_message_id ? 'Email sent' : 'In-app only') : 'Stats pending Loops'}
+              </div>
+            </Link>
           </li>
         ))}
         {(announcements ?? []).length === 0 && (

@@ -9,7 +9,15 @@ import { POLICIES } from '@/lib/consents/policies';
 import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
 import { PasswordResetButton } from './PasswordResetButton';
-import { enrollDancer, removeEnrollment, reassignEnrollment, stopBilling } from '../actions';
+import { DeleteDancerButton } from './DeleteDancerButton';
+import {
+  enrollDancer,
+  removeEnrollment,
+  reassignEnrollment,
+  stopBilling,
+  removeStudent,
+  reactivateStudent,
+} from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +41,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
   const { data: dancer } = await supabase
     .from('family_members')
     .select(
-      `id, first_name, last_name, address, birthday, gender, medical_notes,
+      `id, first_name, last_name, status, address, birthday, gender, medical_notes,
        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, created_at,
        family:family_accounts(id, parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(id, status, class:classes(id, name, day_of_week, start_time, end_time, is_private, location:locations(name))),
@@ -77,6 +85,11 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE[summary.status]}`}>
             {summary.label}
           </span>
+          {d.status === 'removed' && (
+            <span className="rounded-full bg-brand-ink/10 px-2 py-0.5 text-xs font-semibold text-brand-ink/60">
+              Removed
+            </span>
+          )}
         </div>
         <p className="text-sm text-brand-ink/60">{family?.parent1_email}</p>
       </div>
@@ -297,6 +310,44 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
           </select>
           <SubmitButton pendingText="…">Add</SubmitButton>
         </form>
+      </section>
+
+      {/* ===== Actions ===== */}
+      <section className="space-y-4 rounded-lg border border-brand-ink/10 bg-white p-5">
+        <Link
+          href={`/admin/families/${d.id}/view`}
+          className="inline-block rounded-md border border-brand-pink px-4 py-2 text-sm font-semibold text-brand-pink hover:bg-brand-pink/5"
+        >
+          Dancer view — see what they see
+        </Link>
+        <div className="flex flex-wrap items-center gap-3 border-t border-brand-ink/10 pt-4">
+          {d.status === 'removed' ? (
+            <form action={reactivateStudent}>
+              <input type="hidden" name="member_id" value={d.id} />
+              <button
+                type="submit"
+                className="rounded-md border border-brand-ink/30 px-4 py-2 text-sm font-semibold text-brand-ink hover:bg-brand-ink/5"
+              >
+                Reactivate student
+              </button>
+            </form>
+          ) : (
+            <form action={removeStudent}>
+              <input type="hidden" name="member_id" value={d.id} />
+              <button
+                type="submit"
+                className="rounded-md border border-brand-ink/30 px-4 py-2 text-sm font-semibold text-brand-ink hover:bg-brand-ink/5"
+              >
+                Remove student
+              </button>
+            </form>
+          )}
+          <DeleteDancerButton memberId={d.id} name={`${d.first_name} ${d.last_name}`} />
+        </div>
+        <p className="text-xs text-brand-ink/50">
+          <strong>Remove student</strong> disables the dancer and stops billing (record kept).{' '}
+          <strong>Delete</strong> permanently erases them and cannot be undone.
+        </p>
       </section>
     </div>
   );

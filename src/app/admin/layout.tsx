@@ -17,9 +17,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               MacVoy Admin
             </Link>
             <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="text-sm text-white/70 hover:text-white">
-                Parent view
-              </Link>
               <form action={signOut}>
                 <button type="submit" className="text-sm text-white/70 hover:text-white">
                   Sign out
