@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getCurrentSeason, getRateMap, getSeasonClassesGrouped } from '@/lib/season';
+import { getCurrentSeason, getSeasonClassesGrouped } from '@/lib/season';
 import { getFamilyAccount } from '@/lib/auth';
 import { RegistrationForm } from './RegistrationForm';
 
@@ -19,9 +19,8 @@ export default async function RegisterPage() {
     );
   }
 
-  const [groups, rateMap, account] = await Promise.all([
+  const [groups, account] = await Promise.all([
     getSeasonClassesGrouped(season.id),
-    getRateMap(season.id),
     getFamilyAccount(),
   ]);
 
@@ -42,7 +41,6 @@ export default async function RegisterPage() {
 
       <RegistrationForm
         groups={groups}
-        rateEntries={[...rateMap.entries()]}
         isLoggedIn={Boolean(account)}
         parentName={account?.parent1_name ?? null}
       />

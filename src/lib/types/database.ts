@@ -7,26 +7,15 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
       admins: {
-        Row: {
-          created_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          user_id?: string
-        }
+        Row: { created_at: string; user_id: string }
+        Insert: { created_at?: string; user_id: string }
+        Update: { created_at?: string; user_id?: string }
         Relationships: []
       }
       announcement_reads: {
@@ -164,7 +153,9 @@ export type Database = {
           age_min: number | null
           created_at: string
           day_of_week: string
+          end_date: string | null
           end_time: string
+          hourly_rate: number | null
           id: string
           is_private: boolean
           level: string
@@ -172,7 +163,9 @@ export type Database = {
           name: string
           season_id: string
           shoe_type: string
+          start_date: string | null
           start_time: string
+          total_sessions: number | null
           updated_at: string
         }
         Insert: {
@@ -180,7 +173,9 @@ export type Database = {
           age_min?: number | null
           created_at?: string
           day_of_week: string
+          end_date?: string | null
           end_time: string
+          hourly_rate?: number | null
           id?: string
           is_private?: boolean
           level: string
@@ -188,7 +183,9 @@ export type Database = {
           name: string
           season_id: string
           shoe_type: string
+          start_date?: string | null
           start_time: string
+          total_sessions?: number | null
           updated_at?: string
         }
         Update: {
@@ -196,7 +193,9 @@ export type Database = {
           age_min?: number | null
           created_at?: string
           day_of_week?: string
+          end_date?: string | null
           end_time?: string
+          hourly_rate?: number | null
           id?: string
           is_private?: boolean
           level?: string
@@ -204,7 +203,9 @@ export type Database = {
           name?: string
           season_id?: string
           shoe_type?: string
+          start_date?: string | null
           start_time?: string
+          total_sessions?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -328,9 +329,7 @@ export type Database = {
           parent2_email?: string | null
           parent2_name?: string | null
           parent2_phone?: string | null
-          referral_source?:
-            | Database["public"]["Enums"]["referral_source"]
-            | null
+          referral_source?: Database["public"]["Enums"]["referral_source"] | null
           updated_at?: string
         }
         Update: {
@@ -343,9 +342,7 @@ export type Database = {
           parent2_email?: string | null
           parent2_name?: string | null
           parent2_phone?: string | null
-          referral_source?:
-            | Database["public"]["Enums"]["referral_source"]
-            | null
+          referral_source?: Database["public"]["Enums"]["referral_source"] | null
           updated_at?: string
         }
         Relationships: []

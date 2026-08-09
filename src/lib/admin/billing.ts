@@ -4,14 +4,9 @@ import { computeTuition, quarterlySchedule, paidInFullSchedule } from '@/lib/bil
 import { defaultQuarterlyDueDates, todayIso } from '@/lib/billing/dueDates';
 
 /**
- * Recompute a dancer's tuition from the rate card and update their active
- * default plan (spec §7 "reassigning a class auto-recalculates tuition").
- *
- * Custom plans are left untouched — Debbie set those deliberately. Quarterly
- * plans keep their existing 4 due dates and redistribute the new total;
- * pay-in-full keeps its single due date.
- *
- * Returns the new tuition total.
+ * Recompute a dancer's tuition (hourly_rate × hours × total_sessions across
+ * active enrollments) and update their active default plan. Custom plans are
+ * left untouched. Returns the new total.
  */
 export async function recalcDefaultPlanForMember(
   supabase: SupabaseClient,
@@ -19,25 +14,19 @@ export async function recalcDefaultPlanForMember(
 ): Promise<number> {
   const { data: enrollments } = await supabase
     .from('enrollments')
-    .select('classes(start_time, end_time, season_id)')
+    .select('classes(id, start_time, end_time, hourly_rate, total_sessions)')
     .eq('family_member_id', memberId)
     .eq('status', 'active');
 
   const classes = ((enrollments ?? []) as any[]).map((e) => e.classes).filter(Boolean);
-  const seasonId = classes[0]?.season_id as string | undefined;
-
-  const { data: rates } = await supabase
-    .from('rate_card')
-    .select('duration_minutes, price')
-    .eq('season_id', seasonId ?? '');
-  const rateMap = new Map((rates ?? []).map((r: any) => [r.duration_minutes, Number(r.price)]));
 
   const tuition = computeTuition(
     classes.map((c: any) => ({
-      classId: '',
+      classId: c.id,
+      hourlyRate: c.hourly_rate,
       durationMinutes: durationMinutes(c.start_time, c.end_time),
+      totalSessions: c.total_sessions,
     })),
-    rateMap,
   );
 
   const { data: plan } = await supabase
@@ -66,4 +55,21 @@ export async function recalcDefaultPlanForMember(
     .eq('id', plan.id);
 
   return tuition.total;
+}
+
+/** Recalculate default plans for every dancer actively enrolled in a class. */
+export async function recalcMembersOfClass(
+  supabase: SupabaseClient,
+  classId: string,
+): Promise<void> {
+  const { data } = await supabase
+    .from('enrollments')
+    .select('family_member_id')
+    .eq('class_id', classId)
+    .eq('status', 'active');
+
+  const memberIds = [...new Set((data ?? []).map((e: any) => e.family_member_id))];
+  for (const id of memberIds) {
+    await recalcDefaultPlanForMember(supabase, id);
+  }
 }

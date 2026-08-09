@@ -7,12 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { POLICIES } from '@/lib/consents/policies';
 import { getAddon } from '@/lib/constants/addons';
 import { durationMinutes } from '@/lib/season';
-import {
-  computeTuition,
-  quarterlySchedule,
-  paidInFullSchedule,
-  type EnrollmentForPricing,
-} from '@/lib/billing/tuition';
+import { computeTuition, quarterlySchedule, paidInFullSchedule } from '@/lib/billing/tuition';
 import { defaultQuarterlyDueDates, todayIso } from '@/lib/billing/dueDates';
 import { isLoopsConfigured, sendTransactional } from '@/lib/integrations/loops';
 import type { ReferralSource, Json } from '@/lib/types/database';
@@ -204,24 +199,20 @@ export async function registerDancer(
   );
   if (enrollError) return { error: 'Could not enroll in the selected classes.' };
 
-  // --- tuition from the rate card -----------------------------------------
+  // --- tuition: hourly_rate × hours × total_sessions ----------------------
   const { data: classRows } = await admin
     .from('classes')
-    .select('id, start_time, end_time, season_id')
+    .select('id, start_time, end_time, hourly_rate, total_sessions')
     .in('id', classIds);
 
-  const seasonId = classRows?.[0]?.season_id;
-  const { data: rateRows } = await admin
-    .from('rate_card')
-    .select('duration_minutes, price')
-    .eq('season_id', seasonId ?? '');
-  const rateMap = new Map((rateRows ?? []).map((r) => [r.duration_minutes, Number(r.price)]));
-
-  const pricing: EnrollmentForPricing[] = (classRows ?? []).map((c) => ({
-    classId: c.id,
-    durationMinutes: durationMinutes(c.start_time, c.end_time),
-  }));
-  const tuition = computeTuition(pricing, rateMap);
+  const tuition = computeTuition(
+    (classRows ?? []).map((c) => ({
+      classId: c.id,
+      hourlyRate: c.hourly_rate,
+      durationMinutes: durationMinutes(c.start_time, c.end_time),
+      totalSessions: c.total_sessions,
+    })),
+  );
 
   // --- payment plan --------------------------------------------------------
   const base = todayIso();

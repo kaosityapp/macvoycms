@@ -2,8 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { todayIso } from '@/lib/billing/dueDates';
+import { recalcMembersOfClass } from '@/lib/admin/billing';
 
 export interface ActionState {
   error?: string;
@@ -28,11 +27,15 @@ export async function updateClass(_prev: ActionState, formData: FormData): Promi
     start_time: String(formData.get('start_time') ?? ''),
     end_time: String(formData.get('end_time') ?? ''),
     name: String(formData.get('name') ?? '').trim(),
-    level: String(formData.get('level') ?? ''),
-    shoe_type: String(formData.get('shoe_type') ?? ''),
+    level: String(formData.get('level') ?? '') || 'beginner',
+    shoe_type: String(formData.get('shoe_type') ?? '') || 'soft',
     age_min: num(formData.get('age_min')),
     age_max: num(formData.get('age_max')),
     is_private: String(formData.get('is_private') ?? '') === 'on',
+    start_date: String(formData.get('start_date') ?? '') || null,
+    end_date: String(formData.get('end_date') ?? '') || null,
+    hourly_rate: num(formData.get('hourly_rate')),
+    total_sessions: num(formData.get('total_sessions')),
   };
   if (record.end_time <= record.start_time) {
     return { error: 'End time must be after start time.' };
@@ -42,26 +45,13 @@ export async function updateClass(_prev: ActionState, formData: FormData): Promi
   const { error } = await supabase.from('classes').update(record).eq('id', classId);
   if (error) return { error: 'Could not update the class.' };
 
-  // Optional: apply the template change to future sessions from a chosen date.
-  const applyFromRaw = String(formData.get('apply_from') ?? '').trim();
-  if (applyFromRaw) {
-    const today = todayIso();
-    const from = applyFromRaw < today ? today : applyFromRaw; // never touch the past
-    // Drop this class's future sessions, then regenerate them from the new template.
-    await supabase.from('class_sessions').delete().eq('class_id', classId).gte('session_date', from);
-    if (seasonId) {
-      const admin = createAdminClient();
-      await admin.rpc('generate_class_sessions', { p_season_id: seasonId, p_from: from });
-    }
-  }
+  // Tuition depends on hourly_rate / duration / total_sessions, so refresh the
+  // plans of everyone actively enrolled in this class.
+  await recalcMembersOfClass(supabase, classId);
 
   revalidatePath(`/admin/classes/${classId}`);
   if (seasonId) revalidatePath(`/admin/seasons/${seasonId}`);
-  return {
-    success: applyFromRaw
-      ? 'Class updated and future sessions regenerated.'
-      : 'Class template updated (existing sessions unchanged).',
-  };
+  return { success: 'Class updated. Enrolled dancers’ tuition has been recalculated.' };
 }
 
 export async function updateSession(formData: FormData): Promise<void> {

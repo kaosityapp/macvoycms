@@ -16,6 +16,8 @@ interface ClassItem {
   shoe_type: string;
   age_min: number | null;
   age_max: number | null;
+  hourly_rate: number | null;
+  total_sessions: number | null;
 }
 interface Group {
   location: { id: string; name: string };
@@ -53,15 +55,18 @@ function ageLabel(min: number | null, max: number | null): string {
 function money(n: number): string {
   return `$${n.toFixed(2)}`;
 }
+function classPrice(c: ClassItem): number | null {
+  if (c.hourly_rate == null || c.total_sessions == null) return null;
+  const hours = durationMinutes(c.start_time, c.end_time) / 60;
+  return Math.round(c.hourly_rate * hours * c.total_sessions * 100) / 100;
+}
 
 export function RegistrationForm({
   groups,
-  rateEntries,
   isLoggedIn,
   parentName,
 }: {
   groups: Group[];
-  rateEntries: [number, number][];
   isLoggedIn: boolean;
   parentName: string | null;
 }) {
@@ -69,7 +74,6 @@ export function RegistrationForm({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [planType, setPlanType] = useState<'quarterly' | 'paid_in_full'>('quarterly');
 
-  const rateMap = useMemo(() => new Map(rateEntries), [rateEntries]);
   const allClasses = useMemo(() => groups.flatMap((g) => g.classes), [groups]);
 
   const { tuition, hasUnpriced } = useMemo(() => {
@@ -77,12 +81,12 @@ export function RegistrationForm({
     let unpriced = false;
     for (const c of allClasses) {
       if (!selected.has(c.id)) continue;
-      const price = rateMap.get(durationMinutes(c.start_time, c.end_time));
+      const price = classPrice(c);
       if (price == null) unpriced = true;
       else total += price;
     }
-    return { tuition: total, hasUnpriced: unpriced };
-  }, [selected, allClasses, rateMap]);
+    return { tuition: Math.round(total * 100) / 100, hasUnpriced: unpriced };
+  }, [selected, allClasses]);
 
   const installment = Math.round((tuition / 4) * 100) / 100;
 
@@ -200,8 +204,7 @@ export function RegistrationForm({
             <h3 className="font-medium text-brand-ink">{group.location.name}</h3>
             <ul className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10">
               {group.classes.map((c) => {
-                const dur = durationMinutes(c.start_time, c.end_time);
-                const price = rateMap.get(dur);
+                const price = classPrice(c);
                 return (
                   <li key={c.id} className="flex items-start gap-3 px-4 py-3">
                     <input

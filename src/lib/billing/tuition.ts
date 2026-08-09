@@ -1,28 +1,24 @@
 /**
  * Tuition & payment-plan math (spec §3.3, §9).
  *
- * Rules encoded here:
- *   - Tuition per dancer = sum of rate_card price for each active enrollment's
- *     class duration. Combined multi-class schedules are a literal sum — no
- *     combo discount.
- *   - Default plans: quarterly (4 installments) or pay-in-full.
+ * Pricing model (per Debbie): tuition for a class =
+ *   hourly_rate × (duration_minutes ÷ 60) × total_sessions
+ * summed across a dancer's active enrollments. No combo discount.
  *
- * Pure functions — no DB access — so they're trivially testable. Callers pass
- * in the rate map (duration_minutes → price) loaded from `rate_card`.
+ * Pure functions — no DB access — so they're trivially testable.
  */
-
-export type RateMap = Map<number, number>;
 
 export interface EnrollmentForPricing {
   classId: string;
+  hourlyRate: number | null;
   durationMinutes: number;
+  totalSessions: number | null;
 }
 
 export interface TuitionLine {
   classId: string;
-  durationMinutes: number;
   price: number;
-  /** True when no rate_card row matched this duration (e.g. a 45-min class). */
+  /** True when hourly_rate or total_sessions isn't set yet on the class. */
   unpriced: boolean;
 }
 
@@ -32,24 +28,30 @@ export interface TuitionResult {
   hasUnpricedLines: boolean;
 }
 
-/** Sum rate-card lookups across a dancer's active enrollments. */
-export function computeTuition(
-  enrollments: EnrollmentForPricing[],
-  rates: RateMap,
-): TuitionResult {
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Price a single class: hourly_rate × hours × sessions. */
+export function classTuition(
+  hourlyRate: number | null,
+  durationMinutes: number,
+  totalSessions: number | null,
+): number | null {
+  if (hourlyRate == null || totalSessions == null) return null;
+  return round2(hourlyRate * (durationMinutes / 60) * totalSessions);
+}
+
+/** Sum tuition across a dancer's active enrollments. */
+export function computeTuition(enrollments: EnrollmentForPricing[]): TuitionResult {
   const lines: TuitionLine[] = enrollments.map((e) => {
-    const price = rates.get(e.durationMinutes);
-    return {
-      classId: e.classId,
-      durationMinutes: e.durationMinutes,
-      price: price ?? 0,
-      unpriced: price === undefined,
-    };
+    const price = classTuition(e.hourlyRate, e.durationMinutes, e.totalSessions);
+    return { classId: e.classId, price: price ?? 0, unpriced: price === null };
   });
 
   return {
     lines,
-    total: lines.reduce((sum, l) => sum + l.price, 0),
+    total: round2(lines.reduce((sum, l) => sum + l.price, 0)),
     hasUnpricedLines: lines.some((l) => l.unpriced),
   };
 }

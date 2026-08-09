@@ -1,11 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { formatDateLong, formatTime } from '@/lib/format';
-import { SubmitButton, inputClass } from '@/components/ui';
-import { RateCardEditor } from './RateCardEditor';
+import { formatDateLong, formatTime, money } from '@/lib/format';
 import { CreateClassForm } from './CreateClassForm';
-import { regenerateSessions } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,17 +19,14 @@ export default async function SeasonDetailPage({ params }: { params: Promise<{ i
     .maybeSingle();
   if (!season) notFound();
 
-  const [ratesRes, classesRes, locationsRes, sessionCountRes] = await Promise.all([
-    supabase.from('rate_card').select('id, duration_minutes, price').eq('season_id', id).order('duration_minutes'),
+  const [classesRes, locationsRes] = await Promise.all([
     supabase
       .from('classes')
-      .select('id, name, day_of_week, start_time, end_time, level, location:locations(name)')
+      .select(
+        'id, name, day_of_week, start_time, end_time, level, hourly_rate, total_sessions, location:locations(name)',
+      )
       .eq('season_id', id),
     supabase.from('locations').select('id, name').order('name'),
-    supabase
-      .from('class_sessions')
-      .select('id, classes!inner(season_id)', { count: 'exact', head: true })
-      .eq('classes.season_id', id),
   ]);
 
   const classes = ((classesRes.data ?? []) as any[]).sort(
@@ -53,11 +47,6 @@ export default async function SeasonDetailPage({ params }: { params: Promise<{ i
         </p>
       </div>
 
-      <RateCardEditor
-        seasonId={season.id}
-        rates={(ratesRes.data ?? []) as any[]}
-      />
-
       {/* Classes */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-brand-pink">Classes</h2>
@@ -72,10 +61,13 @@ export default async function SeasonDetailPage({ params }: { params: Promise<{ i
                   <div className="font-medium text-brand-ink">{c.name}</div>
                   <div className="text-sm text-brand-ink/60">
                     {c.day_of_week} {formatTime(c.start_time)}–{formatTime(c.end_time)} ·{' '}
-                    {c.location?.name} · {c.level}
+                    {c.location?.name}
                   </div>
                 </div>
-                <span className="text-sm text-brand-ink/40">edit →</span>
+                <div className="text-right text-sm text-brand-ink/60">
+                  {c.hourly_rate != null ? `${money(c.hourly_rate)}/hr` : 'no rate'}
+                  {c.total_sessions != null && ` · ${c.total_sessions} classes`}
+                </div>
               </Link>
             </li>
           ))}
@@ -86,26 +78,6 @@ export default async function SeasonDetailPage({ params }: { params: Promise<{ i
       </section>
 
       <CreateClassForm locations={(locationsRes.data ?? []) as any[]} />
-
-      {/* Sessions */}
-      <section className="space-y-3 rounded-lg border border-brand-ink/10 bg-white p-5">
-        <h2 className="text-lg font-semibold text-brand-pink">Calendar sessions</h2>
-        <p className="text-sm text-brand-ink/70">
-          {sessionCountRes.count ?? 0} sessions generated for this season. Run this after adding or
-          changing classes. Leave the date blank to (re)generate the whole season, or set a date to
-          only regenerate from that day onward — past sessions are never touched.
-        </p>
-        <form action={regenerateSessions} className="flex flex-wrap items-end gap-3">
-          <input type="hidden" name="season_id" value={season.id} />
-          <div>
-            <label htmlFor="from_date" className="block text-sm font-medium text-brand-ink">
-              From date (optional)
-            </label>
-            <input id="from_date" name="from_date" type="date" className={inputClass} />
-          </div>
-          <SubmitButton pendingText="Generating…">Generate / refresh sessions</SubmitButton>
-        </form>
-      </section>
     </div>
   );
 }

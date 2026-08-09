@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 
 export interface ActionState {
   error?: string;
@@ -16,82 +15,75 @@ function num(v: FormDataEntryValue | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function updateRateCard(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const seasonId = String(formData.get('season_id') ?? '');
-  if (!seasonId) return { error: 'Missing season.' };
-  const supabase = await createClient();
-
-  const ids = formData.getAll('existing_id').map(String);
-  for (const id of ids) {
-    if (String(formData.get(`delete_${id}`) ?? '') === 'on') {
-      await supabase.from('rate_card').delete().eq('id', id);
-      continue;
-    }
-    const price = num(formData.get(`price_${id}`));
-    if (price !== null) await supabase.from('rate_card').update({ price }).eq('id', id);
-  }
-
-  const newDuration = num(formData.get('new_duration'));
-  const newPrice = num(formData.get('new_price'));
-  if (newDuration !== null && newPrice !== null) {
-    const { error } = await supabase
-      .from('rate_card')
-      .upsert(
-        { season_id: seasonId, duration_minutes: newDuration, price: newPrice },
-        { onConflict: 'season_id,duration_minutes' },
-      );
-    if (error) return { error: 'Could not add the new rate.' };
-  }
-
-  revalidatePath(`/admin/seasons/${seasonId}`);
-  return { success: 'Rate card saved.' };
+/** 'HH:MM' + minutes → 'HH:MM' (same day). */
+function addMinutesToTime(hhmm: string, minutes: number): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  const hh = Math.floor(total / 60) % 24;
+  const mm = total % 60;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
 export async function createClass(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const seasonId = String(formData.get('season_id') ?? '');
   if (!seasonId) return { error: 'Missing season.' };
 
-  const record = {
-    season_id: seasonId,
-    location_id: String(formData.get('location_id') ?? ''),
-    day_of_week: String(formData.get('day_of_week') ?? ''),
-    start_time: String(formData.get('start_time') ?? ''),
-    end_time: String(formData.get('end_time') ?? ''),
-    name: String(formData.get('name') ?? '').trim(),
-    level: String(formData.get('level') ?? ''),
-    shoe_type: String(formData.get('shoe_type') ?? ''),
-    age_min: num(formData.get('age_min')),
-    age_max: num(formData.get('age_max')),
-    is_private: String(formData.get('is_private') ?? '') === 'on',
-  };
+  const name = String(formData.get('name') ?? '').trim();
+  const locationId = String(formData.get('location_id') ?? '');
+  const dayOfWeek = String(formData.get('day_of_week') ?? '');
+  const startTime = String(formData.get('start_time') ?? '');
+  const durationMin = num(formData.get('duration_minutes'));
+  const startDate = String(formData.get('start_date') ?? '');
+  const endDate = String(formData.get('end_date') ?? '');
+  const hourlyRate = num(formData.get('hourly_rate'));
+  const sessionDates = formData.getAll('session_dates').map(String).filter(Boolean);
+  const totalSessions = num(formData.get('total_sessions')) ?? sessionDates.length;
 
-  if (!record.location_id || !record.name || !record.start_time || !record.end_time) {
-    return { error: 'Location, name, start and end time are required.' };
+  if (!name || !locationId || !startTime || !durationMin || durationMin <= 0) {
+    return { error: 'Name, location, start time, and duration are required.' };
   }
-  if (record.end_time <= record.start_time) {
-    return { error: 'End time must be after start time.' };
-  }
+  if (!startDate || !endDate) return { error: 'Start and end dates are required.' };
+
+  const endTime = addMinutesToTime(startTime, durationMin);
 
   const supabase = await createClient();
-  const { error } = await supabase.from('classes').insert(record);
-  if (error) return { error: 'Could not create the class.' };
+  const { data: cls, error } = await supabase
+    .from('classes')
+    .insert({
+      season_id: seasonId,
+      location_id: locationId,
+      day_of_week: dayOfWeek,
+      start_time: startTime,
+      end_time: endTime,
+      name,
+      level: String(formData.get('level') ?? '') || 'beginner',
+      shoe_type: String(formData.get('shoe_type') ?? '') || 'soft',
+      age_min: num(formData.get('age_min')),
+      age_max: num(formData.get('age_max')),
+      is_private: String(formData.get('is_private') ?? '') === 'on',
+      start_date: startDate,
+      end_date: endDate,
+      hourly_rate: hourlyRate,
+      total_sessions: totalSessions,
+    })
+    .select('id')
+    .single();
+  if (error || !cls) return { error: 'Could not create the class.' };
+
+  // Create exactly the selected calendar dates as sessions.
+  if (sessionDates.length > 0) {
+    const rows = sessionDates.map((d) => ({
+      class_id: cls.id,
+      session_date: d,
+      start_time: startTime,
+      end_time: endTime,
+      location_id: locationId,
+      status: 'scheduled',
+    }));
+    const { error: sessErr } = await supabase.from('class_sessions').insert(rows);
+    if (sessErr) return { error: 'Class created, but adding the dates failed.' };
+  }
 
   revalidatePath(`/admin/seasons/${seasonId}`);
-  return { success: `Class “${record.name}” added. Regenerate sessions to add it to the calendar.` };
-}
-
-/**
- * Generate/refresh calendar sessions for the season. Uses the service-role
- * client because the SQL function is restricted from the authenticated role.
- * `from_date` regenerates only occurrences on/after that date (future-only).
- */
-export async function regenerateSessions(formData: FormData): Promise<void> {
-  const seasonId = String(formData.get('season_id') ?? '');
-  const fromDate = String(formData.get('from_date') ?? '').trim() || undefined;
-  if (!seasonId) return;
-
-  const admin = createAdminClient();
-  await admin.rpc('generate_class_sessions', { p_season_id: seasonId, p_from: fromDate });
-
-  revalidatePath(`/admin/seasons/${seasonId}`);
+  return { success: `Class “${name}” added with ${sessionDates.length} classes.` };
 }

@@ -18,7 +18,7 @@ export default async function ClassDetailPage({ params }: { params: Promise<{ id
   const { data: cls } = await supabase
     .from('classes')
     .select(
-      'id, season_id, location_id, day_of_week, start_time, end_time, name, level, shoe_type, age_min, age_max, is_private, season:seasons(name)',
+      'id, season_id, location_id, day_of_week, start_time, end_time, name, level, shoe_type, age_min, age_max, is_private, start_date, end_date, hourly_rate, total_sessions, season:seasons(name)',
     )
     .eq('id', id)
     .maybeSingle();

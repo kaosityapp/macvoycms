@@ -21,6 +21,10 @@ interface ClassData {
   age_min: number | null;
   age_max: number | null;
   is_private: boolean;
+  start_date: string | null;
+  end_date: string | null;
+  hourly_rate: number | null;
+  total_sessions: number | null;
 }
 
 export function EditClassForm({
@@ -104,13 +108,22 @@ export function EditClassForm({
         Individual / private lesson
       </label>
 
-      <div className="rounded-md bg-brand-pink/5 p-3">
+      <div className="grid gap-4 rounded-md bg-brand-pink/5 p-3 sm:grid-cols-2">
+        <Field label="Start date" htmlFor="start_date">
+          <input id="start_date" name="start_date" type="date" defaultValue={data.start_date ?? ''} className={inputClass} />
+        </Field>
+        <Field label="End date" htmlFor="end_date">
+          <input id="end_date" name="end_date" type="date" defaultValue={data.end_date ?? ''} className={inputClass} />
+        </Field>
+        <Field label="Price per hour ($)" htmlFor="hourly_rate">
+          <input id="hourly_rate" name="hourly_rate" type="number" step="0.01" min={0} defaultValue={data.hourly_rate ?? ''} className={inputClass} />
+        </Field>
         <Field
-          label="Apply to sessions from date (optional)"
-          htmlFor="apply_from"
-          hint="Leave blank to change the template only. Set a date to regenerate this class's sessions from that day onward — past sessions are never affected."
+          label="Total # of classes"
+          htmlFor="total_sessions"
+          hint="Drives tuition: rate × hours × classes. Manage individual dates in the sessions list below."
         >
-          <input id="apply_from" name="apply_from" type="date" className={inputClass} />
+          <input id="total_sessions" name="total_sessions" type="number" min={0} defaultValue={data.total_sessions ?? ''} className={inputClass} />
         </Field>
       </div>
 
