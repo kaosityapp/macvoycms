@@ -55,6 +55,8 @@ export interface InitCheckoutInput {
   /** Our internal reference — becomes the Helcim invoice number, letting the
    *  webhook trace a transaction back to a payment_intents row. */
   reference: string;
+  /** Line-item description shown on the Helcim invoice/receipt. */
+  description?: string;
   customerEmail?: string;
   /** Parent opted in to save the card for future automatic charges. */
   saveCard?: boolean;
@@ -74,10 +76,22 @@ export async function initializeCheckout(input: InitCheckoutInput): Promise<Init
       amount: input.amount,
       currency: input.currency ?? 'CAD',
       paymentType: 'purchase',
-      // Top-level invoiceNumber (not the invoiceRequest object) — invoiceRequest
-      // requires a populated lineItems array once included, which we don't need
-      // for a simple tuition/add-on charge.
-      invoiceNumber: input.reference,
+      // invoiceRequest CREATES a new invoice under our reference (the
+      // top-level invoiceNumber field instead tries to LINK an existing
+      // invoice and 400s with "Invalid Invoice Number" since none exists).
+      // Once invoiceRequest is included, Helcim requires lineItems whose
+      // total matches `amount`.
+      invoiceRequest: {
+        invoiceNumber: input.reference,
+        lineItems: [
+          {
+            description: input.description ?? 'MacVoy Tuition Payment',
+            quantity: 1,
+            price: input.amount,
+            total: input.amount,
+          },
+        ],
+      },
       ...(input.customerEmail
         ? { customerRequest: { email: input.customerEmail } }
         : {}),

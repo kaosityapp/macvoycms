@@ -43,6 +43,7 @@ export async function startPayment(input: {
     session = await initializeCheckout({
       amount: input.amount,
       reference,
+      description: 'MacVoy Tuition Payment',
       customerEmail: (family as any).family_accounts?.parent1_email,
       saveCard: input.saveCard,
     });
