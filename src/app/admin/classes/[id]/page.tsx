@@ -57,7 +57,7 @@ export default async function ClassDetailPage({ params }: { params: Promise<{ id
         <div className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
           {sessions.map((s) => (
             <form
-              key={s.id}
+              key={`${s.id}-${s.status}-${s.note ?? ''}`}
               action={updateSession}
               className="flex flex-wrap items-center gap-3 px-4 py-3"
             >
