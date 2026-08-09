@@ -1,14 +1,13 @@
 import Link from 'next/link';
 import { getFamilyAccount, isAdmin } from '@/lib/auth';
-import { createClient } from '@/lib/supabase/server';
 import {
   getActiveEnrollments,
-  getNextSession,
+  getSessionsInRange,
   getUpcomingInstallments,
   getAnnouncements,
   getReadAnnouncementIds,
 } from '@/lib/dashboard';
-import { todayIso } from '@/lib/billing/dueDates';
+import { todayIso, addDays } from '@/lib/billing/dueDates';
 import { money, formatDateLong, formatTime, formatDateShort, formatTimestamp } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -49,33 +48,29 @@ export default async function OverviewPage({
   }
 
   const today = todayIso();
-  const supabase = await createClient();
+  const in7Days = addDays(today, 7);
+  const in30Days = addDays(today, 30);
 
-  const [enrollments, upcoming, announcements, readIds, membersRes] = await Promise.all([
+  const [enrollments, upcoming, announcements, readIds] = await Promise.all([
     getActiveEnrollments(account.id),
     getUpcomingInstallments(account.id, today),
     getAnnouncements(),
     getReadAnnouncementIds(account.id),
-    supabase
-      .from('family_members')
-      .select('id, first_name, last_name, payment_plans(plan_type, total_amount, status)')
-      .eq('family_account_id', account.id)
-      .order('created_at', { ascending: true }),
   ]);
 
   const classIds = [...new Set(enrollments.map((e) => e.classId))];
-  const nextSession = await getNextSession(classIds, today);
-  const nextInstallment = upcoming[0] ?? null;
-  const unreadCount = announcements.filter((a) => !readIds.has(a.id)).length;
+  const upcomingClasses = await getSessionsInRange(classIds, today, in7Days);
+  const upcomingPayments = upcoming.filter((i) => i.date <= in30Days);
 
   const thirtyDaysAgoIso = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const recentAnnouncements = announcements.filter((a) => (a.sent_at ?? '') >= thirtyDaysAgoIso);
 
-  const members = (membersRes.data ?? []) as any[];
-  const enrollmentsByMember = new Map<string, typeof enrollments>();
+  // classId → dancer first names, for labelling the 7-day class list.
+  const dancersByClass = new Map<string, string[]>();
   for (const e of enrollments) {
-    if (!enrollmentsByMember.has(e.memberId)) enrollmentsByMember.set(e.memberId, []);
-    enrollmentsByMember.get(e.memberId)!.push(e);
+    if (!dancersByClass.has(e.classId)) dancersByClass.set(e.classId, []);
+    const list = dancersByClass.get(e.classId)!;
+    if (!list.includes(e.memberFirstName)) list.push(e.memberFirstName);
   }
 
   return (
@@ -88,85 +83,9 @@ export default async function OverviewPage({
 
       {registered && (
         <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-800">
-          Registration complete! The dancer has been added below.
+          Registration complete! Find the new dancer under Your Dancers.
         </div>
       )}
-
-      {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <SummaryCard label="Next class" href="/dashboard/calendar">
-          {nextSession ? (
-            <>
-              <div className="font-semibold text-brand-ink">{nextSession.className}</div>
-              <div className="text-sm text-brand-ink/60">
-                {formatDateLong(nextSession.sessionDate)}
-                <br />
-                {formatTime(nextSession.startTime)}
-              </div>
-            </>
-          ) : (
-            <span className="text-sm text-brand-ink/50">No upcoming classes</span>
-          )}
-        </SummaryCard>
-
-        <SummaryCard label="Next payment" href="/dashboard/payments">
-          {nextInstallment ? (
-            <>
-              <div className="font-semibold text-brand-ink">{money(nextInstallment.amount)}</div>
-              <div className="text-sm text-brand-ink/60">
-                {formatDateShort(nextInstallment.date)} · {nextInstallment.memberName}
-              </div>
-            </>
-          ) : (
-            <span className="text-sm text-brand-ink/50">Nothing scheduled</span>
-          )}
-        </SummaryCard>
-
-        <SummaryCard label="Announcements" href="/dashboard/announcements">
-          <div className="font-semibold text-brand-ink">
-            {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
-          </div>
-          <div className="text-sm text-brand-ink/60">{announcements.length} total</div>
-        </SummaryCard>
-      </div>
-
-      {/* Dancers */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-brand-pink">Your dancers</h2>
-        {members.length === 0 && <p className="text-brand-ink/70">No dancers registered yet.</p>}
-        {members.map((m) => {
-          const plan = (m.payment_plans as any[])?.find((p) => p.status === 'active');
-          const memberEnrollments = enrollmentsByMember.get(m.id) ?? [];
-          return (
-            <Link
-              key={m.id}
-              href={`/dashboard/dancers/${m.id}`}
-              className="block rounded-lg border border-brand-ink/10 bg-white p-5 transition hover:border-brand-pink/40"
-            >
-              <h3 className="font-semibold text-brand-ink">
-                {m.first_name} {m.last_name}
-              </h3>
-              <ul className="mt-2 space-y-1 text-sm text-brand-ink/70">
-                {memberEnrollments.length === 0 && <li>No active classes.</li>}
-                {memberEnrollments.map((e) => (
-                  <li key={e.classId}>
-                    {e.className} — {e.dayOfWeek} {formatTime(e.startTime)} · {e.locationName}
-                  </li>
-                ))}
-              </ul>
-              {plan && (
-                <p className="mt-3 text-sm text-brand-ink/60">
-                  {plan.plan_type === 'quarterly' ? 'Quarterly (4 installments)' : 'Paid in full'} ·{' '}
-                  {money(plan.total_amount)}
-                </p>
-              )}
-              <span className="mt-3 inline-block text-sm font-medium text-brand-pink">
-                View application →
-              </span>
-            </Link>
-          );
-        })}
-      </section>
 
       {/* Announcements — last 30 days */}
       <section className="space-y-3">
@@ -209,12 +128,63 @@ export default async function OverviewPage({
         )}
       </section>
 
+      {/* Next Class — everyone on the account, next 7 days */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-brand-pink">Next Class</h2>
+        <div className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
+          {upcomingClasses.length === 0 && (
+            <p className="px-5 py-4 text-sm text-brand-ink/60">No classes in the next 7 days.</p>
+          )}
+          {upcomingClasses.map((s) => {
+            const cancelled = s.status === 'cancelled';
+            const names = dancersByClass.get(s.classId) ?? [];
+            return (
+              <div key={s.id} className="flex items-center justify-between gap-4 px-5 py-3">
+                <div>
+                  <div className={`font-medium ${cancelled ? 'text-red-400 line-through' : 'text-brand-ink'}`}>
+                    {s.className}
+                    {names.length > 0 && <span className="text-brand-pink"> · {names.join(', ')}</span>}
+                  </div>
+                  {cancelled && s.note && (
+                    <div className="text-xs font-medium text-red-600">{s.note}</div>
+                  )}
+                </div>
+                <div className={`text-right text-sm ${cancelled ? 'text-red-400/70 line-through' : 'text-brand-ink/60'}`}>
+                  {formatDateLong(s.sessionDate)}
+                  <br />
+                  {formatTime(s.startTime)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Next Payment — due within 30 days, amount and date only */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-brand-pink">Next Payment</h2>
+        <div className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
+          {upcomingPayments.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-brand-ink/60">
+              No Pending Payments within the next 30 days.
+            </p>
+          ) : (
+            upcomingPayments.map((p, i) => (
+              <div key={i} className="flex items-center justify-between px-5 py-3 text-sm">
+                <span className="font-medium text-brand-ink">{money(p.amount)}</span>
+                <span className="text-brand-ink/60">{formatDateShort(p.date)}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
       <div className="flex flex-wrap gap-4">
         <Link
-          href="/register"
+          href="/dashboard/dancers"
           className="rounded-md bg-brand-pink px-4 py-2 font-semibold text-white hover:bg-brand-pink/90"
         >
-          Register another dancer
+          Your Dancers
         </Link>
         {admin && (
           <Link
@@ -226,25 +196,5 @@ export default async function OverviewPage({
         )}
       </div>
     </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  href,
-  children,
-}: {
-  label: string;
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-lg border border-brand-ink/10 bg-white p-4 transition hover:border-brand-pink/40"
-    >
-      <div className="text-xs font-semibold uppercase tracking-wide text-brand-pinkdark">{label}</div>
-      <div className="mt-2">{children}</div>
-    </Link>
   );
 }

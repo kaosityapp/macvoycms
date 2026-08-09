@@ -2,14 +2,10 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments } from '@/lib/admin/paymentStatus';
-import { todayIso } from '@/lib/billing/dueDates';
+import { todayIso, addDays } from '@/lib/billing/dueDates';
 import { money, formatDateShort, formatDateLong, formatTime } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
-
-function addDays(iso: string, n: number): string {
-  return new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-}
 
 export default async function AdminOverviewPage() {
   const supabase = await createClient();

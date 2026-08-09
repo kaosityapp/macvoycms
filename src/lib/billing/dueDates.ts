@@ -21,3 +21,8 @@ export function defaultQuarterlyDueDates(fromIso: string): string[] {
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+/** Add `n` days to an ISO date (YYYY-MM-DD). */
+export function addDays(iso: string, n: number): string {
+  return new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
