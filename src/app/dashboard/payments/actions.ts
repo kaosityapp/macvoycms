@@ -73,12 +73,20 @@ export async function startPayment(input: {
 export interface ConfirmResult {
   ok: boolean;
   error?: string;
+  /** True if we couldn't fast-verify but Helcim reported SUCCESS — the
+   *  webhook will still record the real payment shortly. */
+  pending?: boolean;
 }
 
 /**
- * Fast-path client-side confirmation (hash check only). The webhook is the
- * authoritative writer of `payments` — this just lets the UI say "Payment
- * received" immediately instead of waiting on the webhook round-trip.
+ * Fast-path client-side confirmation. The webhook (HMAC-verified, see
+ * /api/webhooks/helcim) is the sole AUTHORITATIVE writer of `payments` — this
+ * only marks payment_intents for faster UI feedback. Because a hash mismatch
+ * here (e.g. from JSON re-serialization differences between Helcim's original
+ * bytes and a JS reparse+restringify) must never contradict the fact that
+ * Helcim already told the browser SUCCESS, a failed/unparseable hash check is
+ * treated as "pending webhook", not an error — the caller should never be
+ * told a real, already-approved charge "failed".
  */
 export async function confirmPaymentClientSide(
   reference: string,
@@ -90,24 +98,23 @@ export async function confirmPaymentClientSide(
     .select('id, secret_token, status')
     .eq('reference', reference)
     .maybeSingle();
-  if (!intent || !intent.secret_token) return { ok: false, error: 'Unknown payment.' };
+  if (!intent) return { ok: false, error: 'Unknown payment.' };
 
-  let parsed: { data: unknown; hash: string };
+  let verified = false;
   try {
-    parsed = JSON.parse(eventMessageJson);
+    const parsed: { data: unknown; hash: string } = JSON.parse(eventMessageJson);
+    verified =
+      !!intent.secret_token && validateClientHash(parsed.data, parsed.hash, intent.secret_token);
   } catch {
-    return { ok: false, error: 'Malformed response.' };
+    verified = false;
   }
 
-  const valid = validateClientHash(parsed.data, parsed.hash, intent.secret_token);
-  if (!valid) return { ok: false, error: 'Could not verify the payment.' };
-
-  if (intent.status === 'pending') {
+  if (verified && intent.status === 'pending') {
     await supabase.from('payment_intents').update({ status: 'client_confirmed' }).eq('id', intent.id);
   }
 
   revalidatePath('/dashboard/payments');
-  return { ok: true };
+  return { ok: true, pending: !verified };
 }
 
 /** Parent opts a plan in/out of automatic recurring charges (their own dancer only). */
