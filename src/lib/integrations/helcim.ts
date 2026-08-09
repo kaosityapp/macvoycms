@@ -74,7 +74,10 @@ export async function initializeCheckout(input: InitCheckoutInput): Promise<Init
       amount: input.amount,
       currency: input.currency ?? 'CAD',
       paymentType: 'purchase',
-      invoiceRequest: { invoiceNumber: input.reference },
+      // Top-level invoiceNumber (not the invoiceRequest object) — invoiceRequest
+      // requires a populated lineItems array once included, which we don't need
+      // for a simple tuition/add-on charge.
+      invoiceNumber: input.reference,
       ...(input.customerEmail
         ? { customerRequest: { email: input.customerEmail } }
         : {}),
