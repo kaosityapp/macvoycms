@@ -27,12 +27,23 @@ export default async function OverviewPage({
       <div>
         <h1 className="text-2xl font-bold text-brand-pink">Welcome</h1>
         <p className="mt-4 text-brand-ink/70">
-          Your login isn&apos;t linked to a family account yet.
-          {admin && ' (You are signed in as an admin.)'}
+          {admin
+            ? 'You are signed in as an administrator.'
+            : "Your login isn't linked to a family account yet."}
         </p>
-        <Link href="/register" className="mt-6 inline-block text-brand-pink hover:underline">
-          Register a dancer →
-        </Link>
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          {admin && (
+            <Link
+              href="/admin"
+              className="rounded-md bg-brand-pink px-4 py-2 font-semibold text-white hover:bg-brand-pinkdark"
+            >
+              Go to Admin
+            </Link>
+          )}
+          <Link href="/register" className="text-brand-pink hover:underline">
+            Register a dancer →
+          </Link>
+        </div>
       </div>
     );
   }
