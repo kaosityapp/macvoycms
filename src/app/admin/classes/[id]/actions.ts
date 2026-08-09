@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { recalcMembersOfClass } from '@/lib/admin/billing';
+import { todayIso } from '@/lib/billing/dueDates';
 
 export interface ActionState {
   error?: string;
@@ -44,6 +45,13 @@ export async function updateClass(_prev: ActionState, formData: FormData): Promi
   const supabase = await createClient();
   const { error } = await supabase.from('classes').update(record).eq('id', classId);
   if (error) return { error: 'Could not update the class.' };
+
+  // Keep this class's future sessions in sync with the template time.
+  await supabase
+    .from('class_sessions')
+    .update({ start_time: record.start_time, end_time: record.end_time })
+    .eq('class_id', classId)
+    .gte('session_date', todayIso());
 
   // Tuition depends on hourly_rate / duration / total_sessions, so refresh the
   // plans of everyone actively enrolled in this class.
