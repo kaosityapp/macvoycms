@@ -13,13 +13,27 @@ import {
   ymFromIso,
   WEEKDAY_LABELS,
 } from '@/lib/calendar';
+import { DancerFilter } from './DancerFilter';
 
 export const dynamic = 'force-dynamic';
+
+// Distinct per-dancer colors. Deliberately avoids red (reserved for
+// "cancelled") and the brand pink (reserved for UI accents/today).
+const DANCER_COLORS = [
+  '#2563eb', // blue
+  '#16a34a', // green
+  '#d97706', // amber
+  '#7c3aed', // violet
+  '#0891b2', // cyan
+  '#059669', // emerald
+  '#4f46e5', // indigo
+  '#ca8a04', // dark yellow
+];
 
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; dancer?: string }>;
+  searchParams: Promise<{ month?: string; dancers?: string }>;
 }) {
   const params = await searchParams;
   const account = await getFamilyAccount();
@@ -30,26 +44,28 @@ export default async function CalendarPage({
   const today = todayIso();
   const enrollments = await getActiveEnrollments(account.id);
 
-  // Distinct dancers for the filter row.
-  const dancers = [...new Map(enrollments.map((e) => [e.memberId, e.memberFirstName])).entries()].map(
-    ([id, name]) => ({ id, name }),
-  );
+  // Distinct dancers, each assigned a stable color by first-name order.
+  const dancers = [...new Map(enrollments.map((e) => [e.memberId, e.memberFirstName])).entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((d, i) => ({ ...d, color: DANCER_COLORS[i % DANCER_COLORS.length] }));
+  const colorByMemberId = new Map(dancers.map((d) => [d.id, d.color]));
 
-  const validDancer = params.dancer && dancers.some((d) => d.id === params.dancer);
-  const selectedDancer = validDancer ? params.dancer! : 'all';
+  const requestedIds = (params.dancers ?? '').split(',').filter(Boolean);
+  const validRequested = requestedIds.filter((id) => dancers.some((d) => d.id === id));
+  const selected = new Set(validRequested.length > 0 ? validRequested : dancers.map((d) => d.id));
 
-  const scopedEnrollments =
-    selectedDancer === 'all'
-      ? enrollments
-      : enrollments.filter((e) => e.memberId === selectedDancer);
+  const scopedEnrollments = enrollments.filter((e) => selected.has(e.memberId));
   const classIds = [...new Set(scopedEnrollments.map((e) => e.classId))];
 
-  // classId → dancer first names (for the collective view tags).
-  const dancersByClass = new Map<string, string[]>();
+  // classId → dancers (id/name/color) enrolled, among the currently selected.
+  const dancersByClass = new Map<string, { id: string; name: string; color: string }[]>();
   for (const e of scopedEnrollments) {
     if (!dancersByClass.has(e.classId)) dancersByClass.set(e.classId, []);
     const list = dancersByClass.get(e.classId)!;
-    if (!list.includes(e.memberFirstName)) list.push(e.memberFirstName);
+    if (!list.some((d) => d.id === e.memberId)) {
+      list.push({ id: e.memberId, name: e.memberFirstName, color: colorByMemberId.get(e.memberId) ?? '#6b7280' });
+    }
   }
 
   // Default to the month of the next upcoming session.
@@ -71,7 +87,6 @@ export default async function CalendarPage({
   const weeks = monthMatrix(ym);
   const prev = toYm(addMonths(ym, -1));
   const next = toYm(addMonths(ym, 1));
-  const dancerQ = selectedDancer === 'all' ? '' : `&dancer=${selectedDancer}`;
 
   return (
     <div className="space-y-6">
@@ -79,7 +94,7 @@ export default async function CalendarPage({
         <h1 className="text-2xl font-bold text-brand-pink">Calendar</h1>
         <div className="flex items-center gap-2">
           <Link
-            href={`/dashboard/calendar?month=${prev}${dancerQ}`}
+            href={`/dashboard/calendar?month=${prev}${params.dancers ? `&dancers=${params.dancers}` : ''}`}
             className="rounded-md border border-brand-ink/15 px-3 py-1.5 text-sm hover:bg-brand-pink/5"
             aria-label="Previous month"
           >
@@ -89,7 +104,7 @@ export default async function CalendarPage({
             {monthLabel(ym)}
           </span>
           <Link
-            href={`/dashboard/calendar?month=${next}${dancerQ}`}
+            href={`/dashboard/calendar?month=${next}${params.dancers ? `&dancers=${params.dancers}` : ''}`}
             className="rounded-md border border-brand-ink/15 px-3 py-1.5 text-sm hover:bg-brand-pink/5"
             aria-label="Next month"
           >
@@ -98,20 +113,8 @@ export default async function CalendarPage({
         </div>
       </div>
 
-      {/* Dancer filter */}
-      {dancers.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <DancerTab label="All dancers" href={`/dashboard/calendar?month=${toYm(ym)}`} active={selectedDancer === 'all'} />
-          {dancers.map((d) => (
-            <DancerTab
-              key={d.id}
-              label={d.name}
-              href={`/dashboard/calendar?month=${toYm(ym)}&dancer=${d.id}`}
-              active={selectedDancer === d.id}
-            />
-          ))}
-        </div>
-      )}
+      {/* Dancer filter (multi-select) */}
+      {dancers.length > 1 && <DancerFilter dancers={dancers} selected={selected} month={toYm(ym)} />}
 
       {classIds.length === 0 ? (
         <p className="rounded-lg border border-brand-ink/10 bg-white p-6 text-brand-ink/70">
@@ -156,13 +159,21 @@ export default async function CalendarPage({
                     <div className="space-y-1">
                       {daySessions.map((s) => {
                         const cancelled = s.status === 'cancelled';
-                        const tags = dancersByClass.get(s.classId) ?? [];
+                        const dancersHere = dancersByClass.get(s.classId) ?? [];
+                        const soleColor = dancersHere.length === 1 ? dancersHere[0].color : null;
                         return (
                           <div
                             key={s.id}
                             className={`rounded px-1.5 py-1 text-[11px] leading-tight ${
-                              cancelled ? 'bg-red-50' : 'bg-brand-pink/10'
+                              cancelled ? 'bg-red-50' : !soleColor ? 'bg-brand-ink/5' : ''
                             }`}
+                            style={
+                              !cancelled && soleColor
+                                ? { backgroundColor: `${soleColor}1a`, borderLeft: `3px solid ${soleColor}` }
+                                : !cancelled && dancersHere.length > 1
+                                  ? { borderLeft: '3px solid #9ca3af' }
+                                  : undefined
+                            }
                           >
                             <div
                               className={`font-medium ${
@@ -179,8 +190,18 @@ export default async function CalendarPage({
                             {cancelled && s.note && (
                               <div className="mt-0.5 font-medium text-red-600">{s.note}</div>
                             )}
-                            {selectedDancer === 'all' && !cancelled && tags.length > 0 && (
-                              <div className="text-brand-pink">{tags.join(', ')}</div>
+                            {!cancelled && dancersHere.length > 1 && (
+                              <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5">
+                                {dancersHere.map((dh) => (
+                                  <span key={dh.id} className="flex items-center gap-1">
+                                    <span
+                                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                                      style={{ backgroundColor: dh.color }}
+                                    />
+                                    <span className="text-brand-ink/70">{dh.name}</span>
+                                  </span>
+                                ))}
+                              </div>
                             )}
                           </div>
                         );
@@ -199,20 +220,5 @@ export default async function CalendarPage({
         school changes the schedule.
       </p>
     </div>
-  );
-}
-
-function DancerTab({ label, href, active }: { label: string; href: string; active: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-full px-3 py-1 text-sm font-medium transition ${
-        active
-          ? 'bg-brand-pink text-white'
-          : 'border border-brand-ink/15 text-brand-ink/70 hover:bg-brand-pink/5'
-      }`}
-    >
-      {label}
-    </Link>
   );
 }

@@ -9,7 +9,7 @@ import {
   getReadAnnouncementIds,
 } from '@/lib/dashboard';
 import { todayIso } from '@/lib/billing/dueDates';
-import { money, formatDateLong, formatTime, formatDateShort } from '@/lib/format';
+import { money, formatDateLong, formatTime, formatDateShort, formatTimestamp } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +68,9 @@ export default async function OverviewPage({
   const nextInstallment = upcoming[0] ?? null;
   const unreadCount = announcements.filter((a) => !readIds.has(a.id)).length;
 
+  const thirtyDaysAgoIso = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const recentAnnouncements = announcements.filter((a) => (a.sent_at ?? '') >= thirtyDaysAgoIso);
+
   const members = (membersRes.data ?? []) as any[];
   const enrollmentsByMember = new Map<string, typeof enrollments>();
   for (const e of enrollments) {
@@ -81,7 +84,6 @@ export default async function OverviewPage({
         <h1 className="text-2xl font-bold text-brand-pink">
           Hello, {account.parent1_name.split(' ')[0]}
         </h1>
-        <p className="mt-1 text-brand-ink/70">Here&apos;s a snapshot of your family account.</p>
       </div>
 
       {registered && (
@@ -136,7 +138,11 @@ export default async function OverviewPage({
           const plan = (m.payment_plans as any[])?.find((p) => p.status === 'active');
           const memberEnrollments = enrollmentsByMember.get(m.id) ?? [];
           return (
-            <div key={m.id} className="rounded-lg border border-brand-ink/10 bg-white p-5">
+            <Link
+              key={m.id}
+              href={`/dashboard/dancers/${m.id}`}
+              className="block rounded-lg border border-brand-ink/10 bg-white p-5 transition hover:border-brand-pink/40"
+            >
               <h3 className="font-semibold text-brand-ink">
                 {m.first_name} {m.last_name}
               </h3>
@@ -154,9 +160,53 @@ export default async function OverviewPage({
                   {money(plan.total_amount)}
                 </p>
               )}
-            </div>
+              <span className="mt-3 inline-block text-sm font-medium text-brand-pink">
+                View application →
+              </span>
+            </Link>
           );
         })}
+      </section>
+
+      {/* Announcements — last 30 days */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-brand-pink">Announcements</h2>
+        <div className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
+          {recentAnnouncements.length === 0 && (
+            <p className="px-5 py-4 text-sm text-brand-ink/60">
+              No announcements in the last 30 days.
+            </p>
+          )}
+          {recentAnnouncements.map((a) => {
+            const unread = !readIds.has(a.id);
+            return (
+              <Link
+                key={a.id}
+                href={`/dashboard/announcements/${a.id}`}
+                className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-brand-pink/5"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-brand-ink">{a.subject}</span>
+                    {unread && (
+                      <span className="animate-pulse rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        New!
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-brand-ink/50">
+                    {a.sent_at ? formatTimestamp(a.sent_at) : ''}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+        {announcements.length > recentAnnouncements.length && (
+          <Link href="/dashboard/announcements" className="text-sm text-brand-pink hover:underline">
+            View all announcements →
+          </Link>
+        )}
       </section>
 
       <div className="flex flex-wrap gap-4">
