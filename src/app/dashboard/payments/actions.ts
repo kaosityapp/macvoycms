@@ -46,7 +46,8 @@ export async function startPayment(input: {
       customerEmail: (family as any).family_accounts?.parent1_email,
       saveCard: input.saveCard,
     });
-  } catch {
+  } catch (err) {
+    console.error('Helcim initializeCheckout failed:', err);
     return { error: 'Could not start the payment. Please try again.' };
   }
 
