@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SiteNav } from '@/components/SiteNav';
+import { FacebookIcon, InstagramIcon } from '@/components/SocialIcons';
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -27,12 +28,24 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
                 info@macvoyirishdance.com
               </a>
             </div>
-            <div className="flex gap-4">
-              <a href="https://facebook.com/macvoyirishdance" target="_blank" rel="noopener noreferrer" className="hover:text-brand-pink">
-                Facebook
+            <div className="flex items-center gap-4">
+              <a
+                href="https://facebook.com/macvoyirishdance"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="MacVoy School of Irish Dance on Facebook"
+                className="text-brand-ink/60 transition hover:text-brand-pink"
+              >
+                <FacebookIcon className="h-6 w-6" />
               </a>
-              <a href="https://www.instagram.com/macvoyschoolofirishdance/" target="_blank" rel="noopener noreferrer" className="hover:text-brand-pink">
-                Instagram
+              <a
+                href="https://www.instagram.com/macvoyschoolofirishdance/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="MacVoy School of Irish Dance on Instagram"
+                className="text-brand-ink/60 transition hover:text-brand-pink"
+              >
+                <InstagramIcon className="h-6 w-6" />
               </a>
               <Link href="/dashboard" className="hover:text-brand-pink">
                 My Account
