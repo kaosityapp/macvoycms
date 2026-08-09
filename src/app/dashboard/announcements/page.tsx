@@ -23,7 +23,7 @@ export default async function AnnouncementsPage() {
 
       {announcements.length === 0 ? (
         <p className="rounded-lg border border-brand-ink/10 bg-white p-6 text-brand-ink/70">
-          No announcements yet.
+          No announcements in the last 30 days.
         </p>
       ) : (
         <ul className="space-y-3">

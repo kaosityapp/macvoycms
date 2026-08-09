@@ -64,8 +64,8 @@ export default async function DancerApplicationPage({
   return (
     <div className="space-y-8">
       <div>
-        <Link href="/dashboard" className="text-sm text-brand-pink hover:underline">
-          ← Your dancers
+        <Link href="/dashboard/profile" className="text-sm text-brand-pink hover:underline">
+          ← Profile
         </Link>
         <h1 className="mt-2 text-2xl font-bold text-brand-pink">
           {d.first_name} {d.last_name}

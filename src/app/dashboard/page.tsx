@@ -62,9 +62,6 @@ export default async function OverviewPage({
   const upcomingClasses = await getSessionsInRange(classIds, today, in7Days);
   const upcomingPayments = upcoming.filter((i) => i.date <= in30Days);
 
-  const thirtyDaysAgoIso = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const recentAnnouncements = announcements.filter((a) => (a.sent_at ?? '') >= thirtyDaysAgoIso);
-
   // classId → dancer first names, for labelling the 7-day class list.
   const dancersByClass = new Map<string, string[]>();
   for (const e of enrollments) {
@@ -83,7 +80,7 @@ export default async function OverviewPage({
 
       {registered && (
         <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-800">
-          Registration complete! Find the new dancer under Your Dancers.
+          Registration complete! Find the new dancer under Profile.
         </div>
       )}
 
@@ -91,12 +88,12 @@ export default async function OverviewPage({
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-brand-pink">Announcements</h2>
         <div className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
-          {recentAnnouncements.length === 0 && (
+          {announcements.length === 0 && (
             <p className="px-5 py-4 text-sm text-brand-ink/60">
               No announcements in the last 30 days.
             </p>
           )}
-          {recentAnnouncements.map((a) => {
+          {announcements.map((a) => {
             const unread = !readIds.has(a.id);
             return (
               <Link
@@ -121,11 +118,6 @@ export default async function OverviewPage({
             );
           })}
         </div>
-        {announcements.length > recentAnnouncements.length && (
-          <Link href="/dashboard/announcements" className="text-sm text-brand-pink hover:underline">
-            View all announcements →
-          </Link>
-        )}
       </section>
 
       {/* Next Class — everyone on the account, next 7 days */}
@@ -179,22 +171,16 @@ export default async function OverviewPage({
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-4">
-        <Link
-          href="/dashboard/dancers"
-          className="rounded-md bg-brand-pink px-4 py-2 font-semibold text-white hover:bg-brand-pink/90"
-        >
-          Your Dancers
-        </Link>
-        {admin && (
+      {admin && (
+        <div className="flex flex-wrap gap-4">
           <Link
             href="/admin"
             className="rounded-md border border-brand-pink px-4 py-2 font-semibold text-brand-pink"
           >
             Admin
           </Link>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

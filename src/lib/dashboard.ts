@@ -214,13 +214,19 @@ export async function getAutoChargePlans(accountId: string): Promise<AutoChargeP
   return out;
 }
 
-/** Announcements visible to the current family (RLS already filters). */
+/**
+ * Announcements visible to the current family (RLS already filters), capped
+ * to the last 30 days — older ones no longer show anywhere in the parent
+ * dashboard.
+ */
 export async function getAnnouncements() {
   const supabase = await createClient();
+  const thirtyDaysAgoIso = new Date(Date.now() - 30 * 86_400_000).toISOString();
   const { data } = await supabase
     .from('announcements')
     .select('id, subject, body, sender, sent_at')
     .not('sent_at', 'is', null)
+    .gte('sent_at', thirtyDaysAgoIso)
     .order('sent_at', { ascending: false });
   return data ?? [];
 }

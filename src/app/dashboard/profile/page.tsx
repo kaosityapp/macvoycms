@@ -6,7 +6,7 @@ import { money, formatTime } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DancersListPage() {
+export default async function ProfilePage() {
   const account = await getFamilyAccount();
   if (!account) {
     return <p className="text-brand-ink/70">No family account found.</p>;
@@ -31,7 +31,7 @@ export default async function DancersListPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-brand-pink">Your dancers</h1>
+      <h1 className="text-2xl font-bold text-brand-pink">Profile</h1>
 
       <div className="space-y-4">
         {members.length === 0 && <p className="text-brand-ink/70">No dancers registered yet.</p>}
@@ -41,7 +41,7 @@ export default async function DancersListPage() {
           return (
             <Link
               key={m.id}
-              href={`/dashboard/dancers/${m.id}`}
+              href={`/dashboard/profile/${m.id}`}
               className="block rounded-lg border border-brand-ink/10 bg-white p-5 transition hover:border-brand-pink/40"
             >
               <h3 className="font-semibold text-brand-ink">
