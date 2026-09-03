@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useMemo, useState } from 'react';
 import { completePendingRegistration, type CompleteRegistrationState } from './actions';
 import { POLICIES } from '@/lib/consents/policies';
 import { Field, FormError, SubmitButton, inputClass } from '@/components/ui';
@@ -64,11 +64,28 @@ export function ContinuePrefilledForm({
     completePendingRegistration,
     {},
   );
+  const [agreed, setAgreed] = useState<Set<string>>(new Set());
+  const allAgreed = agreed.size === POLICIES.length;
+
+  const classById = useMemo(() => {
+    const map = new Map<string, ClassItem & { location_name: string }>();
+    for (const g of groups) {
+      for (const c of g.classes) map.set(c.id, { ...c, location_name: g.location.name });
+    }
+    return map;
+  }, [groups]);
+
+  function toggleAgreed(type: string, checked: boolean) {
+    setAgreed((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(type);
+      else next.delete(type);
+      return next;
+    });
+  }
 
   return (
     <form action={action} className="space-y-10">
-      <input type="hidden" name="dancerCount" value={dancers.length} />
-
       {/* Account holder — editable */}
       <section className="space-y-4 rounded-lg bg-brand-pink/5 p-5">
         <h2 className="text-lg font-semibold text-brand-pink">Account holder</h2>
@@ -121,11 +138,11 @@ export function ContinuePrefilledForm({
         </div>
       </section>
 
-      {/* Dancers — editable */}
+      {/* Dancers — personal details editable, classes/payment read-only */}
       <section className="space-y-6">
         <h2 className="text-lg font-semibold text-brand-pink">Your dancer(s)</h2>
         {dancers.map((d, i) => (
-          <DancerFields key={i} index={i} dancer={d} groups={groups} />
+          <DancerFields key={i} index={i} dancer={d} classById={classById} />
         ))}
       </section>
 
@@ -156,10 +173,17 @@ export function ContinuePrefilledForm({
         </div>
       </section>
 
-      {/* Waivers */}
+      {/* Waivers — one agreement covers every dancer on this account */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-brand-pink">Agreements</h2>
-        <p className="text-sm text-brand-ink/70">All are required to register.</p>
+        <p className="text-sm text-brand-ink/70">
+          These apply to all {dancers.length > 1 ? 'dancers' : 'the dancer'} on this account. All{' '}
+          {POLICIES.length} are required —{' '}
+          <span className={allAgreed ? 'text-green-700' : 'font-semibold text-brand-pink'}>
+            {agreed.size} of {POLICIES.length} agreed
+          </span>
+          .
+        </p>
         <div className="space-y-2">
           {POLICIES.map((policy) => (
             <div key={policy.type} className="rounded-md border border-brand-ink/10 p-3">
@@ -168,6 +192,7 @@ export function ContinuePrefilledForm({
                   type="checkbox"
                   name={`consent_${policy.type}`}
                   required
+                  onChange={(e) => toggleAgreed(policy.type, e.target.checked)}
                   className="mt-1 h-4 w-4 accent-brand-pink"
                 />
                 <span className="text-sm">{policy.label}</span>
@@ -184,22 +209,25 @@ export function ContinuePrefilledForm({
       </section>
 
       <FormError message={state.error} />
-      <SubmitButton pendingText="Submitting…">Complete registration</SubmitButton>
+      <SubmitButton pendingText="Submitting…" disabled={!allAgreed}>
+        Complete registration
+      </SubmitButton>
     </form>
   );
 }
 
-function DancerFields({ index, dancer, groups }: { index: number; dancer: DancerPrefill; groups: Group[] }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set(dancer.class_ids ?? []));
-
-  function toggle(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+function DancerFields({
+  index,
+  dancer,
+  classById,
+}: {
+  index: number;
+  dancer: DancerPrefill;
+  classById: Map<string, ClassItem & { location_name: string }>;
+}) {
+  const resolvedClasses = (dancer.class_ids ?? []).map((id) => classById.get(id)).filter(Boolean) as (ClassItem & {
+    location_name: string;
+  })[];
 
   return (
     <div className="space-y-4 rounded-lg border border-brand-ink/10 p-5">
@@ -290,40 +318,27 @@ function DancerFields({ index, dancer, groups }: { index: number; dancer: Dancer
         </Field>
       </div>
 
-      {/* Classes — editable checkboxes against the live season schedule */}
+      {/* Classes — read-only. Changing a class can change the rate the school
+          set, so this goes through Debbie rather than being self-service. */}
       <div>
         <h4 className="text-sm font-semibold text-brand-ink/80">Classes</h4>
-        {dancer.class_ids?.length === 0 && (
-          <p className="mt-1 text-xs text-amber-700">
-            No class was on file for this dancer — please select one below.
+        {resolvedClasses.length === 0 ? (
+          <p className="mt-1 text-sm text-amber-700">
+            No class on file yet — contact the school to confirm.
           </p>
+        ) : (
+          <ul className="mt-1 space-y-1 text-sm text-brand-ink/70">
+            {resolvedClasses.map((c) => (
+              <li key={c.id}>
+                {c.name} — {c.day_of_week} {formatTime(c.start_time)}–{formatTime(c.end_time)} ·{' '}
+                {c.location_name}
+              </li>
+            ))}
+          </ul>
         )}
-        <div className="mt-2 space-y-3">
-          {groups.map((group) => (
-            <div key={group.location.id}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-ink/50">
-                {group.location.name}
-              </p>
-              <ul className="mt-1 divide-y divide-brand-ink/10 rounded-md border border-brand-ink/10">
-                {group.classes.map((c) => (
-                  <li key={c.id} className="flex items-start gap-3 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      name={`classIds_${index}`}
-                      value={c.id}
-                      checked={selected.has(c.id)}
-                      onChange={() => toggle(c.id)}
-                      className="mt-0.5 h-4 w-4 accent-brand-pink"
-                    />
-                    <span className="text-sm">
-                      {c.name} — {c.day_of_week} {formatTime(c.start_time)}–{formatTime(c.end_time)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <p className="mt-1 text-xs text-brand-ink/50">
+          Need to change classes? Contact the school — your rate may change.
+        </p>
       </div>
 
       {/* Payment plan — read-only, set by the school */}

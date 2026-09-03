@@ -75,6 +75,17 @@ export function RegistrationForm({
   const [state, action] = useActionState<RegistrationState, FormData>(registerDancer, {});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [planType, setPlanType] = useState<'quarterly' | 'paid_in_full'>('quarterly');
+  const [agreed, setAgreed] = useState<Set<string>>(new Set());
+  const allAgreed = agreed.size === POLICIES.length;
+
+  function toggleAgreed(type: string, checked: boolean) {
+    setAgreed((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(type);
+      else next.delete(type);
+      return next;
+    });
+  }
 
   const allClasses = useMemo(() => groups.flatMap((g) => g.classes), [groups]);
 
@@ -321,7 +332,13 @@ export function RegistrationForm({
       {/* ---- Waivers ---- */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-brand-pink">Agreements</h2>
-        <p className="text-sm text-brand-ink/70">All are required to register.</p>
+        <p className="text-sm text-brand-ink/70">
+          All {POLICIES.length} are required to register —{' '}
+          <span className={allAgreed ? 'text-green-700' : 'font-semibold text-brand-pink'}>
+            {agreed.size} of {POLICIES.length} agreed
+          </span>
+          .
+        </p>
         <div className="space-y-2">
           {POLICIES.map((policy) => (
             <div key={policy.type} className="rounded-md border border-brand-ink/10 p-3">
@@ -330,6 +347,7 @@ export function RegistrationForm({
                   type="checkbox"
                   name={`consent_${policy.type}`}
                   required
+                  onChange={(e) => toggleAgreed(policy.type, e.target.checked)}
                   className="mt-1 h-4 w-4 accent-brand-pink"
                 />
                 <span className="text-sm">{policy.label}</span>
@@ -347,7 +365,9 @@ export function RegistrationForm({
 
       <FormError message={state.error} />
       <div className="flex items-center gap-4">
-        <SubmitButton pendingText="Registering…">Complete registration</SubmitButton>
+        <SubmitButton pendingText="Registering…" disabled={!allAgreed}>
+          Complete registration
+        </SubmitButton>
         <span className={labelClass}>{money(tuition)} tuition</span>
       </div>
     </form>

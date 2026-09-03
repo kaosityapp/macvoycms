@@ -38,13 +38,16 @@ export function Field({
 export function SubmitButton({
   children,
   pendingText = 'Working…',
+  disabled = false,
 }: {
   children: React.ReactNode;
   pendingText?: string;
+  /** Extra condition (e.g. "not all required boxes checked yet") beyond the built-in pending state. */
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className={buttonClass} disabled={pending}>
+    <button type="submit" className={buttonClass} disabled={pending || disabled}>
       {pending ? pendingText : children}
     </button>
   );

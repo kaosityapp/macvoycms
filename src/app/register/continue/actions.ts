@@ -16,6 +16,7 @@ export interface CompleteRegistrationState {
 const passwordSchema = z.string().min(8, 'Password must be at least 8 characters.');
 
 interface DancerPrefill {
+  class_ids?: string[];
   addon?: string;
   plan_type?: string;
   total_amount: number;
@@ -49,8 +50,8 @@ export async function completePendingRegistration(
     }
   }
 
-  // Re-fetch server-side — the dancer COUNT and payment plan come from here,
-  // never from the client; only personal details/classes are editable.
+  // Re-fetch server-side — dancer COUNT, classes, and payment plan all come
+  // from here, never the client; only personal/contact details are editable.
   const { data: pending } = await admin
     .from('pending_registrations')
     .select('*')
@@ -116,7 +117,9 @@ export async function completePendingRegistration(
 
   for (let i = 0; i < originalDancers.length; i++) {
     const original = originalDancers[i];
-    const classIds = formData.getAll(`classIds_${i}`).map(String).filter(Boolean);
+    // Classes are never client-editable here — a change can mean a different
+    // rate, which goes through Debbie (admin) rather than being self-service.
+    const classIds = original.class_ids ?? [];
 
     const { data: member, error: memberError } = await admin
       .from('family_members')
