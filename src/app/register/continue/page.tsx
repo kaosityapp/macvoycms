@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getCurrentSeason, getSeasonClassesGrouped } from '@/lib/season';
 import { ContinuePrefilledForm } from './ContinuePrefilledForm';
 
 export const dynamic = 'force-dynamic';
@@ -49,16 +50,8 @@ export default async function ContinueRegistrationPage() {
   }
 
   const dancers = (pending.dancers ?? []) as unknown as DancerPrefill[];
-  const allClassIds = [...new Set(dancers.flatMap((d) => d.class_ids ?? []))];
-
-  const { data: classRows } = allClassIds.length
-    ? await admin
-        .from('classes')
-        .select('id, name, day_of_week, start_time, end_time, location:locations(name)')
-        .in('id', allClassIds)
-    : { data: [] };
-
-  const classById = new Map((classRows ?? []).map((c: any) => [c.id, c]));
+  const season = await getCurrentSeason();
+  const groups = season ? await getSeasonClassesGrouped(season.id) : [];
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
@@ -68,8 +61,8 @@ export default async function ContinueRegistrationPage() {
         </Link>
         <h1 className="mt-3 text-3xl font-bold text-brand-pink">Confirm your registration</h1>
         <p className="mt-2 text-brand-ink/70">
-          We&apos;ve pre-filled your dancer(s), classes, and payment plan below. Set a password,
-          review, and agree to the waivers to finish.
+          We&apos;ve pre-filled your dancer(s), classes, and payment plan below. Fix anything
+          that&apos;s changed, set a password, and agree to the waivers to finish.
         </p>
       </div>
 
@@ -82,19 +75,8 @@ export default async function ContinueRegistrationPage() {
           parent2_phone: pending.parent2_phone,
           parent2_email: pending.parent2_email,
         }}
-        dancers={dancers.map((d) => ({
-          ...d,
-          classes: (d.class_ids ?? [])
-            .map((id) => classById.get(id))
-            .filter(Boolean)
-            .map((c: any) => ({
-              name: c.name,
-              day_of_week: c.day_of_week,
-              start_time: c.start_time,
-              end_time: c.end_time,
-              location_name: c.location?.name ?? '',
-            })),
-        }))}
+        dancers={dancers}
+        groups={groups}
       />
     </main>
   );

@@ -16,16 +16,6 @@ export interface CompleteRegistrationState {
 const passwordSchema = z.string().min(8, 'Password must be at least 8 characters.');
 
 interface DancerPrefill {
-  first_name: string;
-  last_name: string;
-  birthday?: string;
-  gender?: string;
-  address?: string;
-  medical_notes?: string;
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  emergency_contact_relationship?: string;
-  class_ids?: string[];
   addon?: string;
   plan_type?: string;
   total_amount: number;
@@ -50,13 +40,17 @@ export async function completePendingRegistration(
     return { error: 'Passwords do not match.' };
   }
 
+  const parent1Name = s(formData, 'parent1Name');
+  if (!parent1Name) return { error: 'Parent 1 name is required.' };
+
   for (const policy of POLICIES) {
     if (s(formData, `consent_${policy.type}`) !== 'on') {
       return { error: `You must agree to the ${policy.title} to register.` };
     }
   }
 
-  // Re-fetch server-side — never trust the client for what gets created.
+  // Re-fetch server-side — the dancer COUNT and payment plan come from here,
+  // never from the client; only personal details/classes are editable.
   const { data: pending } = await admin
     .from('pending_registrations')
     .select('*')
@@ -65,6 +59,17 @@ export async function completePendingRegistration(
     .maybeSingle();
   if (!pending) {
     return { error: 'This pre-filled registration is no longer available. Please contact us.' };
+  }
+
+  const originalDancers = (pending.dancers ?? []) as unknown as DancerPrefill[];
+  if (originalDancers.length === 0) {
+    return { error: 'No dancer information found on this registration. Please contact us.' };
+  }
+
+  for (let i = 0; i < originalDancers.length; i++) {
+    if (!s(formData, `firstName_${i}`) || !s(formData, `lastName_${i}`)) {
+      return { error: `Dancer ${i + 1}: first and last name are required.` };
+    }
   }
 
   const { error: pwError } = await supabase.auth.updateUser({ password: password.data });
@@ -80,17 +85,27 @@ export async function completePendingRegistration(
   let familyAccountId: string;
   if (existingAccount) {
     familyAccountId = existingAccount.id;
+    await admin
+      .from('family_accounts')
+      .update({
+        parent1_name: parent1Name,
+        parent1_phone: s(formData, 'parent1Phone') || null,
+        parent2_name: s(formData, 'parent2Name') || null,
+        parent2_phone: s(formData, 'parent2Phone') || null,
+        parent2_email: s(formData, 'parent2Email') || null,
+      })
+      .eq('id', familyAccountId);
   } else {
     const { data: fa, error: faError } = await admin
       .from('family_accounts')
       .insert({
         auth_user_id: user.id,
-        parent1_name: pending.parent1_name || 'Parent',
-        parent1_phone: pending.parent1_phone,
+        parent1_name: parent1Name,
+        parent1_phone: s(formData, 'parent1Phone') || null,
         parent1_email: user.email!,
-        parent2_name: pending.parent2_name,
-        parent2_phone: pending.parent2_phone,
-        parent2_email: pending.parent2_email,
+        parent2_name: s(formData, 'parent2Name') || null,
+        parent2_phone: s(formData, 'parent2Phone') || null,
+        parent2_email: s(formData, 'parent2Email') || null,
         referral_source: pending.referral_source,
       })
       .select('id')
@@ -99,29 +114,27 @@ export async function completePendingRegistration(
     familyAccountId = fa.id;
   }
 
-  const dancers = (pending.dancers ?? []) as unknown as DancerPrefill[];
-  if (dancers.length === 0) {
-    return { error: 'No dancer information found on this registration. Please contact us.' };
-  }
+  for (let i = 0; i < originalDancers.length; i++) {
+    const original = originalDancers[i];
+    const classIds = formData.getAll(`classIds_${i}`).map(String).filter(Boolean);
 
-  for (const d of dancers) {
     const { data: member, error: memberError } = await admin
       .from('family_members')
       .insert({
         family_account_id: familyAccountId,
-        first_name: d.first_name,
-        last_name: d.last_name,
-        birthday: d.birthday || null,
-        gender: d.gender || null,
-        address: d.address || null,
-        medical_notes: d.medical_notes || null,
-        emergency_contact_name: d.emergency_contact_name || null,
-        emergency_contact_phone: d.emergency_contact_phone || null,
-        emergency_contact_relationship: d.emergency_contact_relationship || null,
+        first_name: s(formData, `firstName_${i}`),
+        last_name: s(formData, `lastName_${i}`),
+        birthday: s(formData, `birthday_${i}`) || null,
+        gender: s(formData, `gender_${i}`) || null,
+        address: s(formData, `address_${i}`) || null,
+        medical_notes: s(formData, `medicalNotes_${i}`) || null,
+        emergency_contact_name: s(formData, `emergencyName_${i}`) || null,
+        emergency_contact_phone: s(formData, `emergencyPhone_${i}`) || null,
+        emergency_contact_relationship: s(formData, `emergencyRelationship_${i}`) || null,
       })
       .select('id')
       .single();
-    if (memberError || !member) return { error: `Could not save ${d.first_name}'s details.` };
+    if (memberError || !member) return { error: `Could not save dancer ${i + 1}'s details.` };
     const memberId = member.id;
 
     const { error: consentError } = await admin.from('consents').insert(
@@ -133,23 +146,26 @@ export async function completePendingRegistration(
     );
     if (consentError) return { error: 'Could not record consents.' };
 
-    if (d.class_ids?.length) {
+    if (classIds.length) {
       const { error: enrollError } = await admin
         .from('enrollments')
-        .insert(d.class_ids.map((classId) => ({ family_member_id: memberId, class_id: classId })));
-      if (enrollError) return { error: `Could not enroll ${d.first_name} in the selected classes.` };
+        .insert(classIds.map((classId) => ({ family_member_id: memberId, class_id: classId })));
+      if (enrollError) return { error: `Could not enroll dancer ${i + 1} in the selected classes.` };
     }
 
-    const { error: planError } = await admin.from('payment_plans').insert({
-      family_member_id: memberId,
-      plan_type: d.plan_type || 'custom',
-      total_amount: d.total_amount,
-      installment_schedule: (d.installment_schedule ?? []) as unknown as Json,
-      status: 'active',
-    });
-    if (planError) return { error: `Could not create ${d.first_name}'s payment plan.` };
+    // Payment plan is never client-editable — always the school's figures.
+    if (original.total_amount > 0) {
+      const { error: planError } = await admin.from('payment_plans').insert({
+        family_member_id: memberId,
+        plan_type: original.plan_type || 'custom',
+        total_amount: original.total_amount,
+        installment_schedule: (original.installment_schedule ?? []) as unknown as Json,
+        status: 'active',
+      });
+      if (planError) return { error: `Could not create dancer ${i + 1}'s payment plan.` };
+    }
 
-    const addon = d.addon ? getAddon(d.addon) : undefined;
+    const addon = original.addon ? getAddon(original.addon) : undefined;
     if (addon?.itemType) {
       await admin.from('order_items').insert({
         family_member_id: memberId,

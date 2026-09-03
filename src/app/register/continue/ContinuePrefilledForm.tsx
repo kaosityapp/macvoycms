@@ -1,24 +1,35 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { completePendingRegistration, type CompleteRegistrationState } from './actions';
 import { POLICIES } from '@/lib/consents/policies';
 import { Field, FormError, SubmitButton, inputClass } from '@/components/ui';
-import { money, formatDateShort, formatDateLong, formatTime } from '@/lib/format';
+import { money, formatDateLong, formatTime } from '@/lib/format';
 
-interface ClassDisplay {
-  name: string;
+interface ClassItem {
+  id: string;
   day_of_week: string;
   start_time: string;
   end_time: string;
-  location_name: string;
+  name: string;
+  location_id: string;
+}
+interface Group {
+  location: { id: string; name: string };
+  classes: ClassItem[];
 }
 
-interface DancerDisplay {
+interface DancerPrefill {
   first_name: string;
   last_name: string;
   birthday?: string;
-  classes: ClassDisplay[];
+  gender?: string;
+  address?: string;
+  medical_notes?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+  class_ids: string[];
   plan_type?: string;
   total_amount: number;
   installment_schedule: { date: string; amount: number }[];
@@ -42,10 +53,12 @@ export function ContinuePrefilledForm({
   email,
   pending,
   dancers,
+  groups,
 }: {
   email: string;
   pending: PendingInfo;
-  dancers: DancerDisplay[];
+  dancers: DancerPrefill[];
+  groups: Group[];
 }) {
   const [state, action] = useActionState<CompleteRegistrationState, FormData>(
     completePendingRegistration,
@@ -54,71 +67,65 @@ export function ContinuePrefilledForm({
 
   return (
     <form action={action} className="space-y-10">
-      {/* Account holder — read-only, confirmed from our records */}
-      <section className="space-y-2 rounded-lg bg-brand-pink/5 p-5">
+      <input type="hidden" name="dancerCount" value={dancers.length} />
+
+      {/* Account holder — editable */}
+      <section className="space-y-4 rounded-lg bg-brand-pink/5 p-5">
         <h2 className="text-lg font-semibold text-brand-pink">Account holder</h2>
-        <p className="text-sm text-brand-ink/80">
-          {pending.parent1_name} · {email}
-          {pending.parent1_phone ? ` · ${pending.parent1_phone}` : ''}
+        <p className="text-sm text-brand-ink/60">
+          Login email: <strong>{email}</strong> (can&apos;t be changed here)
         </p>
-        {pending.parent2_name && (
-          <p className="text-sm text-brand-ink/80">
-            {pending.parent2_name}
-            {pending.parent2_phone ? ` · ${pending.parent2_phone}` : ''}
-            {pending.parent2_email ? ` · ${pending.parent2_email}` : ''}
-          </p>
-        )}
-        <p className="text-xs text-brand-ink/50">
-          Something wrong here? Contact the school directly before submitting.
-        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Parent 1 name" htmlFor="parent1Name" required>
+            <input
+              id="parent1Name"
+              name="parent1Name"
+              required
+              defaultValue={pending.parent1_name ?? ''}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Parent 1 phone" htmlFor="parent1Phone">
+            <input
+              id="parent1Phone"
+              name="parent1Phone"
+              defaultValue={pending.parent1_phone ?? ''}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Parent 2 name" htmlFor="parent2Name">
+            <input
+              id="parent2Name"
+              name="parent2Name"
+              defaultValue={pending.parent2_name ?? ''}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Parent 2 phone" htmlFor="parent2Phone">
+            <input
+              id="parent2Phone"
+              name="parent2Phone"
+              defaultValue={pending.parent2_phone ?? ''}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Parent 2 email" htmlFor="parent2Email">
+            <input
+              id="parent2Email"
+              name="parent2Email"
+              type="email"
+              defaultValue={pending.parent2_email ?? ''}
+              className={inputClass}
+            />
+          </Field>
+        </div>
       </section>
 
-      {/* Dancers — read-only summary */}
-      <section className="space-y-4">
+      {/* Dancers — editable */}
+      <section className="space-y-6">
         <h2 className="text-lg font-semibold text-brand-pink">Your dancer(s)</h2>
         {dancers.map((d, i) => (
-          <div key={i} className="space-y-3 rounded-lg border border-brand-ink/10 p-5">
-            <h3 className="font-semibold text-brand-ink">
-              {d.first_name} {d.last_name}
-              {d.birthday && (
-                <span className="ml-2 text-sm font-normal text-brand-ink/60">
-                  Born {formatDateShort(d.birthday)}
-                </span>
-              )}
-            </h3>
-
-            <div>
-              <h4 className="text-sm font-semibold text-brand-ink/80">Classes</h4>
-              {d.classes.length === 0 ? (
-                <p className="text-sm text-brand-ink/60">No classes on file.</p>
-              ) : (
-                <ul className="mt-1 space-y-1 text-sm text-brand-ink/70">
-                  {d.classes.map((c, ci) => (
-                    <li key={ci}>
-                      {c.name} — {c.day_of_week} {formatTime(c.start_time)}–{formatTime(c.end_time)}
-                      {c.location_name ? ` · ${c.location_name}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div>
-              <h4 className="text-sm font-semibold text-brand-ink/80">Payment plan</h4>
-              <p className="text-sm text-brand-ink/70">
-                {PLAN_LABEL[d.plan_type ?? 'custom'] ?? 'Custom plan'} · {money(d.total_amount)} total
-              </p>
-              {d.installment_schedule.length > 0 && (
-                <ul className="mt-1 text-sm text-brand-ink/60">
-                  {d.installment_schedule.map((inst, ii) => (
-                    <li key={ii}>
-                      {formatDateLong(inst.date)} — {money(inst.amount)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+          <DancerFields key={i} index={i} dancer={d} groups={groups} />
         ))}
       </section>
 
@@ -179,5 +186,172 @@ export function ContinuePrefilledForm({
       <FormError message={state.error} />
       <SubmitButton pendingText="Submitting…">Complete registration</SubmitButton>
     </form>
+  );
+}
+
+function DancerFields({ index, dancer, groups }: { index: number; dancer: DancerPrefill; groups: Group[] }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(dancer.class_ids ?? []));
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="space-y-4 rounded-lg border border-brand-ink/10 p-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="First name" htmlFor={`firstName_${index}`} required>
+          <input
+            id={`firstName_${index}`}
+            name={`firstName_${index}`}
+            required
+            defaultValue={dancer.first_name}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Last name" htmlFor={`lastName_${index}`} required>
+          <input
+            id={`lastName_${index}`}
+            name={`lastName_${index}`}
+            required
+            defaultValue={dancer.last_name}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Birthday" htmlFor={`birthday_${index}`}>
+          <input
+            id={`birthday_${index}`}
+            name={`birthday_${index}`}
+            type="date"
+            defaultValue={dancer.birthday ?? ''}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Gender" htmlFor={`gender_${index}`}>
+          <select
+            id={`gender_${index}`}
+            name={`gender_${index}`}
+            defaultValue={dancer.gender ?? ''}
+            className={inputClass}
+          >
+            <option value="">Select…</option>
+            <option value="Female">Female</option>
+            <option value="Male">Male</option>
+            <option value="Non-binary">Non-binary</option>
+            <option value="Prefer not to say">Prefer not to say</option>
+          </select>
+        </Field>
+      </div>
+      <Field label="Address" htmlFor={`address_${index}`}>
+        <input
+          id={`address_${index}`}
+          name={`address_${index}`}
+          defaultValue={dancer.address ?? ''}
+          className={inputClass}
+        />
+      </Field>
+      <Field label="Medical conditions / medications / allergies" htmlFor={`medicalNotes_${index}`}>
+        <textarea
+          id={`medicalNotes_${index}`}
+          name={`medicalNotes_${index}`}
+          rows={2}
+          defaultValue={dancer.medical_notes ?? ''}
+          className={inputClass}
+        />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Emergency contact name" htmlFor={`emergencyName_${index}`}>
+          <input
+            id={`emergencyName_${index}`}
+            name={`emergencyName_${index}`}
+            defaultValue={dancer.emergency_contact_name ?? ''}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Emergency contact phone" htmlFor={`emergencyPhone_${index}`}>
+          <input
+            id={`emergencyPhone_${index}`}
+            name={`emergencyPhone_${index}`}
+            defaultValue={dancer.emergency_contact_phone ?? ''}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Relationship" htmlFor={`emergencyRelationship_${index}`}>
+          <input
+            id={`emergencyRelationship_${index}`}
+            name={`emergencyRelationship_${index}`}
+            defaultValue={dancer.emergency_contact_relationship ?? ''}
+            className={inputClass}
+          />
+        </Field>
+      </div>
+
+      {/* Classes — editable checkboxes against the live season schedule */}
+      <div>
+        <h4 className="text-sm font-semibold text-brand-ink/80">Classes</h4>
+        {dancer.class_ids?.length === 0 && (
+          <p className="mt-1 text-xs text-amber-700">
+            No class was on file for this dancer — please select one below.
+          </p>
+        )}
+        <div className="mt-2 space-y-3">
+          {groups.map((group) => (
+            <div key={group.location.id}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-ink/50">
+                {group.location.name}
+              </p>
+              <ul className="mt-1 divide-y divide-brand-ink/10 rounded-md border border-brand-ink/10">
+                {group.classes.map((c) => (
+                  <li key={c.id} className="flex items-start gap-3 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      name={`classIds_${index}`}
+                      value={c.id}
+                      checked={selected.has(c.id)}
+                      onChange={() => toggle(c.id)}
+                      className="mt-0.5 h-4 w-4 accent-brand-pink"
+                    />
+                    <span className="text-sm">
+                      {c.name} — {c.day_of_week} {formatTime(c.start_time)}–{formatTime(c.end_time)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Payment plan — read-only, set by the school */}
+      <div>
+        <h4 className="text-sm font-semibold text-brand-ink/80">Payment plan</h4>
+        {dancer.total_amount > 0 ? (
+          <>
+            <p className="text-sm text-brand-ink/70">
+              {PLAN_LABEL[dancer.plan_type ?? 'custom'] ?? 'Custom plan'} · {money(dancer.total_amount)}{' '}
+              total
+            </p>
+            {dancer.installment_schedule?.length > 0 && (
+              <ul className="mt-1 text-sm text-brand-ink/60">
+                {dancer.installment_schedule.map((inst, ii) => (
+                  <li key={ii}>
+                    {formatDateLong(inst.date)} — {money(inst.amount)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-brand-ink/60">No plan set yet — the school will follow up.</p>
+        )}
+        <p className="mt-1 text-xs text-brand-ink/50">
+          Payment amount isn&apos;t editable here — contact the school if this needs to change.
+        </p>
+      </div>
+    </div>
   );
 }
