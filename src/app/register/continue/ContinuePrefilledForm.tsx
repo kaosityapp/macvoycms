@@ -149,6 +149,7 @@ export function ContinuePrefilledForm({
       {/* Password */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-brand-pink">Set your password</h2>
+        <p className="text-sm text-brand-ink/70">Your password must be at least 8 characters.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Password" htmlFor="password" required hint="At least 8 characters.">
             <input
@@ -157,6 +158,7 @@ export function ContinuePrefilledForm({
               type="password"
               autoComplete="new-password"
               required
+              minLength={8}
               className={inputClass}
             />
           </Field>
@@ -167,6 +169,7 @@ export function ContinuePrefilledForm({
               type="password"
               autoComplete="new-password"
               required
+              minLength={8}
               className={inputClass}
             />
           </Field>

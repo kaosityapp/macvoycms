@@ -141,7 +141,7 @@ export function RegistrationForm({
               />
             </Field>
             <Field label="Create a password" htmlFor="password" required hint="At least 8 characters.">
-              <input id="password" name="password" type="password" autoComplete="new-password" required className={inputClass} />
+              <input id="password" name="password" type="password" autoComplete="new-password" required minLength={8} className={inputClass} />
             </Field>
             <Field label="Parent 2 name" htmlFor="parent2Name">
               <input id="parent2Name" name="parent2Name" className={inputClass} />
