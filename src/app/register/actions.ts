@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -14,6 +15,50 @@ import type { ReferralSource, Json } from '@/lib/types/database';
 
 export interface RegistrationState {
   error?: string;
+}
+
+export interface EmailCheckResult {
+  error?: string;
+  /** True if this email has a pre-filled registration waiting — a magic link
+   *  was just sent and the caller should show "check your email". */
+  matched?: boolean;
+}
+
+const emailSchema = z.string().email('Enter a valid email address.');
+
+/**
+ * Step 0 of registration: does this email have pre-filled dancer/class/
+ * payment data from Debbie's import? If so, send a magic link (no password
+ * exists yet for this login) and let /register/continue pick up from there.
+ * If not, the caller falls through to the full registration form.
+ */
+export async function checkRegistrationEmail(
+  _prev: EmailCheckResult,
+  formData: FormData,
+): Promise<EmailCheckResult> {
+  const parsed = emailSchema.safeParse(String(formData.get('email') ?? '').trim());
+  if (!parsed.success) return { error: parsed.error.errors[0].message };
+  const email = parsed.data;
+
+  const admin = createAdminClient();
+  const { data: pending } = await admin
+    .from('pending_registrations')
+    .select('id')
+    .ilike('email', email)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (!pending) return { matched: false };
+
+  const origin = (await headers()).get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: `${origin}/auth/callback?next=/register/continue` },
+  });
+  if (error) return { error: 'Could not send the verification email. Please try again.' };
+
+  return { matched: true };
 }
 
 const REFERRAL_VALUES: ReferralSource[] = [

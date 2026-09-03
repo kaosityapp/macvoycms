@@ -8,14 +8,23 @@ export type Json =
 
 export type Database = {
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
       admins: {
-        Row: { created_at: string; user_id: string }
-        Insert: { created_at?: string; user_id: string }
-        Update: { created_at?: string; user_id?: string }
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
         Relationships: []
       }
       announcement_reads: {
@@ -430,69 +439,6 @@ export type Database = {
         }
         Relationships: []
       }
-      payment_intents: {
-        Row: {
-          id: string
-          family_member_id: string
-          payment_plan_id: string | null
-          installment_index: number | null
-          category: string
-          amount: number
-          reference: string
-          checkout_token: string | null
-          secret_token: string | null
-          status: string
-          helcim_transaction_id: string | null
-          save_card: boolean
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          family_member_id: string
-          payment_plan_id?: string | null
-          installment_index?: number | null
-          category?: string
-          amount: number
-          reference: string
-          checkout_token?: string | null
-          secret_token?: string | null
-          status?: string
-          helcim_transaction_id?: string | null
-          save_card?: boolean
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          family_member_id?: string
-          payment_plan_id?: string | null
-          installment_index?: number | null
-          category?: string
-          amount?: number
-          reference?: string
-          checkout_token?: string | null
-          secret_token?: string | null
-          status?: string
-          helcim_transaction_id?: string | null
-          save_card?: boolean
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_intents_family_member_id_fkey"
-            columns: ["family_member_id"]
-            isOneToOne: false
-            referencedRelation: "family_members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payment_intents_payment_plan_id_fkey"
-            columns: ["payment_plan_id"]
-            isOneToOne: false
-            referencedRelation: "payment_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       order_items: {
         Row: {
           amount: number
@@ -525,8 +471,72 @@ export type Database = {
           },
         ]
       }
+      payment_intents: {
+        Row: {
+          amount: number
+          category: string
+          checkout_token: string | null
+          created_at: string
+          family_member_id: string
+          helcim_transaction_id: string | null
+          id: string
+          installment_index: number | null
+          payment_plan_id: string | null
+          reference: string
+          save_card: boolean
+          secret_token: string | null
+          status: string
+        }
+        Insert: {
+          amount: number
+          category?: string
+          checkout_token?: string | null
+          created_at?: string
+          family_member_id: string
+          helcim_transaction_id?: string | null
+          id?: string
+          installment_index?: number | null
+          payment_plan_id?: string | null
+          reference: string
+          save_card?: boolean
+          secret_token?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          checkout_token?: string | null
+          created_at?: string
+          family_member_id?: string
+          helcim_transaction_id?: string | null
+          id?: string
+          installment_index?: number | null
+          payment_plan_id?: string | null
+          reference?: string
+          save_card?: boolean
+          secret_token?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intents_family_member_id_fkey"
+            columns: ["family_member_id"]
+            isOneToOne: false
+            referencedRelation: "family_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_intents_payment_plan_id_fkey"
+            columns: ["payment_plan_id"]
+            isOneToOne: false
+            referencedRelation: "payment_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_plans: {
         Row: {
+          auto_charge: boolean
           created_at: string
           family_member_id: string
           helcim_subscription_id: string | null
@@ -534,13 +544,13 @@ export type Database = {
           installment_schedule: Json
           plan_type: string
           status: string
-          total_amount: number
-          updated_at: string
           stored_card_token: string | null
           stored_customer_code: string | null
-          auto_charge: boolean
+          total_amount: number
+          updated_at: string
         }
         Insert: {
+          auto_charge?: boolean
           created_at?: string
           family_member_id: string
           helcim_subscription_id?: string | null
@@ -548,13 +558,13 @@ export type Database = {
           installment_schedule?: Json
           plan_type: string
           status?: string
-          total_amount: number
-          updated_at?: string
           stored_card_token?: string | null
           stored_customer_code?: string | null
-          auto_charge?: boolean
+          total_amount: number
+          updated_at?: string
         }
         Update: {
+          auto_charge?: boolean
           created_at?: string
           family_member_id?: string
           helcim_subscription_id?: string | null
@@ -562,11 +572,10 @@ export type Database = {
           installment_schedule?: Json
           plan_type?: string
           status?: string
-          total_amount?: number
-          updated_at?: string
           stored_card_token?: string | null
           stored_customer_code?: string | null
-          auto_charge?: boolean
+          total_amount?: number
+          updated_at?: string
         }
         Relationships: [
           {
@@ -631,6 +640,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pending_registrations: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          dancers: Json
+          email: string
+          id: string
+          parent1_name: string | null
+          parent1_phone: string | null
+          parent2_email: string | null
+          parent2_name: string | null
+          parent2_phone: string | null
+          referral_source: Database["public"]["Enums"]["referral_source"] | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          dancers?: Json
+          email: string
+          id?: string
+          parent1_name?: string | null
+          parent1_phone?: string | null
+          parent2_email?: string | null
+          parent2_name?: string | null
+          parent2_phone?: string | null
+          referral_source?: Database["public"]["Enums"]["referral_source"] | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          dancers?: Json
+          email?: string
+          id?: string
+          parent1_name?: string | null
+          parent1_phone?: string | null
+          parent2_email?: string | null
+          parent2_name?: string | null
+          parent2_phone?: string | null
+          referral_source?: Database["public"]["Enums"]["referral_source"] | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       rate_card: {
         Row: {

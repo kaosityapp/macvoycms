@@ -65,10 +65,12 @@ export function RegistrationForm({
   groups,
   isLoggedIn,
   parentName,
+  initialEmail,
 }: {
   groups: Group[];
   isLoggedIn: boolean;
   parentName: string | null;
+  initialEmail?: string;
 }) {
   const [state, action] = useActionState<RegistrationState, FormData>(registerDancer, {});
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -118,7 +120,14 @@ export function RegistrationForm({
               <input id="parent1Phone" name="parent1Phone" className={inputClass} />
             </Field>
             <Field label="Parent 1 email" htmlFor="parent1Email" required hint="This is your login.">
-              <input id="parent1Email" name="parent1Email" type="email" required className={inputClass} />
+              <input
+                id="parent1Email"
+                name="parent1Email"
+                type="email"
+                required
+                defaultValue={initialEmail}
+                className={inputClass}
+              />
             </Field>
             <Field label="Create a password" htmlFor="password" required hint="At least 8 characters.">
               <input id="password" name="password" type="password" autoComplete="new-password" required className={inputClass} />
