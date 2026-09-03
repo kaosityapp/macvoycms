@@ -56,7 +56,10 @@ export async function checkRegistrationEmail(
     email,
     options: { emailRedirectTo: `${origin}/auth/callback?next=/register/continue` },
   });
-  if (error) return { error: 'Could not send the verification email. Please try again.' };
+  if (error) {
+    console.error('signInWithOtp failed:', error);
+    return { error: 'Could not send the verification email. Please try again.' };
+  }
 
   return { matched: true };
 }
