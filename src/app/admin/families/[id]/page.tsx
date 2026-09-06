@@ -10,12 +10,13 @@ import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
 import { PasswordResetButton } from './PasswordResetButton';
 import { DeleteDancerButton } from './DeleteDancerButton';
+import { CancelStudentButton } from './CancelStudentButton';
+import { EditRegistrationForm } from './EditRegistrationForm';
 import {
   enrollDancer,
   removeEnrollment,
   reassignEnrollment,
   stopBilling,
-  removeStudent,
   reactivateStudent,
 } from '../actions';
 
@@ -87,7 +88,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
           </span>
           {d.status === 'removed' && (
             <span className="rounded-full bg-brand-ink/10 px-2 py-0.5 text-xs font-semibold text-brand-ink/60">
-              Removed
+              Cancelled
             </span>
           )}
         </div>
@@ -194,36 +195,29 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
           <span className="text-sm text-brand-ink/50">Registered {formatDateLong(d.created_at?.slice(0, 10) ?? today)}</span>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div className="space-y-1 text-sm">
-            <h3 className="font-semibold text-brand-ink">Dancer</h3>
-            <Row label="Birthday" value={d.birthday ? formatDateShort(d.birthday) : '—'} />
-            <Row label="Gender" value={d.gender || '—'} />
-            <Row label="Address" value={d.address || '—'} />
-            <Row label="Medical" value={d.medical_notes || 'None'} />
-            <Row
-              label="Emergency"
-              value={
-                d.emergency_contact_name
-                  ? `${d.emergency_contact_name} (${d.emergency_contact_relationship ?? ''}) · ${d.emergency_contact_phone ?? ''}`
-                  : '—'
-              }
-            />
-          </div>
+        <EditRegistrationForm
+          memberId={d.id}
+          familyId={family?.id ?? ''}
+          dancer={{
+            first_name: d.first_name,
+            last_name: d.last_name,
+            birthday: d.birthday,
+            gender: d.gender,
+            address: d.address,
+            medical_notes: d.medical_notes,
+            emergency_contact_name: d.emergency_contact_name,
+            emergency_contact_phone: d.emergency_contact_phone,
+            emergency_contact_relationship: d.emergency_contact_relationship,
+          }}
+          family={family}
+        />
 
-          <div className="space-y-1 text-sm">
-            <h3 className="font-semibold text-brand-ink">Account holder</h3>
-            <Row label="Parent 1" value={`${family?.parent1_name ?? ''}${family?.parent1_phone ? ` · ${family.parent1_phone}` : ''}`} />
-            <Row label="Email" value={family?.parent1_email ?? ''} />
-            {family?.parent2_name && (
-              <Row label="Parent 2" value={`${family.parent2_name}${family.parent2_email ? ` · ${family.parent2_email}` : ''}`} />
-            )}
-            <Row label="Referral" value={family?.referral_source ? String(family.referral_source).replace(/_/g, ' ') : '—'} />
-            <div className="pt-2">
-              <PasswordResetButton email={family?.parent1_email ?? ''} />
-            </div>
-          </div>
-        </div>
+        {family?.referral_source && (
+          <p className="text-sm text-brand-ink/60">
+            Referral: {String(family.referral_source).replace(/_/g, ' ')}
+          </p>
+        )}
+        <PasswordResetButton email={family?.parent1_email ?? ''} />
 
         {/* Add-ons */}
         {(d.order_items ?? []).length > 0 && (
@@ -332,31 +326,17 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
               </button>
             </form>
           ) : (
-            <form action={removeStudent}>
-              <input type="hidden" name="member_id" value={d.id} />
-              <button
-                type="submit"
-                className="rounded-md border border-brand-ink/30 px-4 py-2 text-sm font-semibold text-brand-ink hover:bg-brand-ink/5"
-              >
-                Remove student
-              </button>
-            </form>
+            <CancelStudentButton memberId={d.id} name={`${d.first_name} ${d.last_name}`} />
           )}
           <DeleteDancerButton memberId={d.id} name={`${d.first_name} ${d.last_name}`} />
         </div>
         <p className="text-xs text-brand-ink/50">
-          <strong>Remove student</strong> disables the dancer and stops billing (record kept).{' '}
-          <strong>Delete</strong> permanently erases them and cannot be undone.
+          <strong>Cancel student</strong> stops future billing and removes them from their class(es)
+          — just this dancer, not the whole family account. Their record, payment history, and
+          waivers are kept, and you can reactivate any time. <strong>Delete</strong> permanently
+          erases everything and cannot be undone.
         </p>
       </section>
     </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <p className="text-brand-ink/70">
-      <span className="text-brand-ink/50">{label}:</span> {value}
-    </p>
   );
 }
