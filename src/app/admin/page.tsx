@@ -89,6 +89,17 @@ export default async function AdminOverviewPage() {
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-brand-pink">Admin overview</h1>
 
+      {/* Quick actions */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-brand-pink">Quick actions</h2>
+        <div className="flex flex-wrap gap-3">
+          <QuickLink href="/admin/seasons">Manage seasons &amp; classes</QuickLink>
+          <QuickLink href="/admin/families">View dancers</QuickLink>
+          <QuickLink href="/admin/announcements/new">Send an announcement</QuickLink>
+          <QuickLink href="/admin/payments">Payments &amp; export</QuickLink>
+        </div>
+      </section>
+
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
@@ -176,17 +187,6 @@ export default async function AdminOverviewPage() {
               </span>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Quick actions */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-brand-pink">Quick actions</h2>
-        <div className="flex flex-wrap gap-3">
-          <QuickLink href="/admin/seasons">Manage seasons &amp; classes</QuickLink>
-          <QuickLink href="/admin/families">View dancers</QuickLink>
-          <QuickLink href="/admin/announcements/new">Send an announcement</QuickLink>
-          <QuickLink href="/admin/payments">Payments &amp; export</QuickLink>
         </div>
       </section>
     </div>
