@@ -3,12 +3,14 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments, type PayStatus } from '@/lib/admin/paymentStatus';
+import { findDueInstallment } from '@/lib/billing/autoCharge';
 import { todayIso } from '@/lib/billing/dueDates';
 import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp } from '@/lib/format';
 import { POLICIES } from '@/lib/consents/policies';
 import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
 import { RecordPaymentForm } from './RecordPaymentForm';
+import { RetryInstallmentControls } from './RetryInstallmentControls';
 import { PasswordResetButton } from './PasswordResetButton';
 import { DeleteDancerButton } from './DeleteDancerButton';
 import { CancelStudentButton } from './CancelStudentButton';
@@ -47,7 +49,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, created_at,
        family:family_accounts(id, parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(id, status, class:classes(id, name, day_of_week, start_time, end_time, is_private, location:locations(name))),
-       payment_plans(id, plan_type, total_amount, installment_schedule, status),
+       payment_plans(id, plan_type, total_amount, installment_schedule, status, auto_charge, stored_card_token),
        payments(id, amount, category, paid_at, method, note),
        consents(type, agreed_at),
        order_items(item_type, amount)`,
@@ -65,6 +67,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
   const installments: { date: string; amount: number }[] = Array.isArray(activePlan?.installment_schedule)
     ? activePlan.installment_schedule
     : [];
+  const dueInstallment = findDueInstallment(installments, summary.paid, today);
   const consentByType = new Map((d.consents ?? []).map((c: any) => [c.type, c.agreed_at]));
 
   const { data: classesData } = await supabase
@@ -122,17 +125,28 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
             <ul className="mt-1 divide-y divide-brand-ink/5 text-sm">
               {installments.map((i, idx) => {
                 const past = i.date < today;
+                const isDue = billingActive && dueInstallment?.index === idx;
                 return (
-                  <li key={idx} className="flex items-center justify-between py-1.5">
+                  <li key={idx} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
                     <span className="text-brand-ink">
                       {formatDateShort(i.date)} — {money(i.amount)}
                     </span>
-                    <span
-                      className={`text-xs ${
-                        past ? (billingActive ? 'text-red-600' : 'text-brand-ink/50') : 'text-brand-ink/50'
-                      }`}
-                    >
-                      {past ? (billingActive ? 'overdue' : 'due') : 'upcoming'}
+                    <span className="flex items-center gap-3">
+                      <span
+                        className={`text-xs ${
+                          past ? (billingActive ? 'text-red-600' : 'text-brand-ink/50') : 'text-brand-ink/50'
+                        }`}
+                      >
+                        {past ? (billingActive ? 'overdue' : 'due') : 'upcoming'}
+                      </span>
+                      {isDue && activePlan?.id && (
+                        <RetryInstallmentControls
+                          memberId={d.id}
+                          planId={activePlan.id}
+                          installmentIndex={idx}
+                          hasCard={Boolean(activePlan.stored_card_token)}
+                        />
+                      )}
                     </span>
                   </li>
                 );
