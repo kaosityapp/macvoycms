@@ -13,7 +13,7 @@ export default async function AdminOverviewPage() {
   const in7 = addDays(today, 7);
   const billingActive = isHelcimConfigured();
 
-  const [dancerCountRes, locEnrRes, newRegsRes, payRes, upcomingRes] = await Promise.all([
+  const [dancerCountRes, locEnrRes, newRegsRes, payRes, upcomingRes, needsPricingRes] = await Promise.all([
     supabase.from('family_members').select('*', { count: 'exact', head: true }).eq('status', 'active'),
     supabase
       .from('enrollments')
@@ -39,7 +39,13 @@ export default async function AdminOverviewPage() {
       .neq('status', 'removed')
       .order('session_date', { ascending: true })
       .order('start_time', { ascending: true }),
+    supabase
+      .from('family_members')
+      .select('id, first_name, last_name')
+      .eq('status', 'pending_pricing')
+      .order('created_at', { ascending: true }),
   ]);
+  const needsPricing = (needsPricingRes.data ?? []) as { id: string; first_name: string; last_name: string }[];
 
   const dancerCount = dancerCountRes.count ?? 0;
 
@@ -109,6 +115,23 @@ export default async function AdminOverviewPage() {
           </div>
         ))}
       </div>
+
+      {/* Registrations needing a price set before they can be approved */}
+      {needsPricing.length > 0 && (
+        <section className="rounded-lg border border-orange-200 bg-orange-50 p-5">
+          <h2 className="text-lg font-semibold text-orange-800">Needs pricing ({needsPricing.length})</h2>
+          <ul className="mt-2 divide-y divide-orange-100 text-sm">
+            {needsPricing.map((n) => (
+              <li key={n.id} className="flex items-center justify-between py-1.5">
+                <Link href={`/admin/families/${n.id}`} className="text-brand-ink hover:underline">
+                  {n.first_name} {n.last_name}
+                </Link>
+                <span className="text-orange-800">registered directly — set a price to approve</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Late payment alerts */}
       {late.length > 0 && (

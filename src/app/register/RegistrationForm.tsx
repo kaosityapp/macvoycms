@@ -290,7 +290,7 @@ export function RegistrationForm({
         <h2 className="text-lg font-semibold text-brand-pink">Payment plan</h2>
         <div className="rounded-lg border border-brand-ink/10 p-4">
           <div className="flex items-baseline justify-between">
-            <span className="text-sm text-brand-ink/70">Tuition total</span>
+            <span className="text-sm text-brand-ink/70">Estimated tuition</span>
             <span className="text-xl font-bold text-brand-pink">{money(tuition)}</span>
           </div>
           <div className="mt-4 space-y-2">
@@ -324,8 +324,8 @@ export function RegistrationForm({
           </div>
         </div>
         <p className="text-xs text-brand-ink/50">
-          Online payment is set up once the school connects its payment processor. For now this
-          records your plan.
+          This is an estimate and your preference — the school confirms your final price and sets
+          up your payment plan after you submit, then emails you to finalize payment.
         </p>
       </section>
 

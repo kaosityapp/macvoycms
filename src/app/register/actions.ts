@@ -7,11 +7,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { POLICIES } from '@/lib/consents/policies';
 import { getAddon } from '@/lib/constants/addons';
-import { durationMinutes } from '@/lib/season';
-import { computeTuition, quarterlySchedule, paidInFullSchedule } from '@/lib/billing/tuition';
-import { defaultQuarterlyDueDates, todayIso } from '@/lib/billing/dueDates';
-import { isLoopsConfigured, sendTransactional } from '@/lib/integrations/loops';
-import type { ReferralSource, Json } from '@/lib/types/database';
+import { sendAdminAlert } from '@/lib/integrations/adminAlert';
+import type { ReferralSource } from '@/lib/types/database';
 
 export interface RegistrationState {
   error?: string;
@@ -225,6 +222,9 @@ export async function registerDancer(
       emergency_contact_name: m.emergencyName || null,
       emergency_contact_phone: m.emergencyPhone || null,
       emergency_contact_relationship: m.emergencyRelationship || null,
+      // Not on Debbie's spreadsheet, so tuition isn't known yet — she sets
+      // the price and approves before this dancer is billed for anything.
+      status: 'pending_pricing',
     })
     .select('id')
     .single();
@@ -247,37 +247,6 @@ export async function registerDancer(
   );
   if (enrollError) return { error: 'Could not enroll in the selected classes.' };
 
-  // --- tuition: hourly_rate × hours × total_sessions ----------------------
-  const { data: classRows } = await admin
-    .from('classes')
-    .select('id, start_time, end_time, hourly_rate, total_sessions')
-    .in('id', classIds);
-
-  const tuition = computeTuition(
-    (classRows ?? []).map((c) => ({
-      classId: c.id,
-      hourlyRate: c.hourly_rate,
-      durationMinutes: durationMinutes(c.start_time, c.end_time),
-      totalSessions: c.total_sessions,
-    })),
-  );
-
-  // --- payment plan --------------------------------------------------------
-  const base = todayIso();
-  const schedule =
-    planType === 'quarterly'
-      ? quarterlySchedule(tuition.total, defaultQuarterlyDueDates(base))
-      : paidInFullSchedule(tuition.total, base);
-
-  const { error: planError } = await admin.from('payment_plans').insert({
-    family_member_id: memberId,
-    plan_type: planType,
-    total_amount: tuition.total,
-    installment_schedule: schedule as unknown as Json,
-    status: 'active',
-  });
-  if (planError) return { error: 'Could not create the payment plan.' };
-
   // --- add-on (one-time charge) -------------------------------------------
   const addon = getAddon(s(formData, 'addon'));
   if (addon && addon.itemType) {
@@ -288,21 +257,18 @@ export async function registerDancer(
     });
   }
 
-  // NOTE: Helcim charge/subscription setup happens here once keys exist.
-  // Until then the plan is recorded without a helcim_subscription_id.
-
-  // --- confirmation email (skipped until Loops is configured) --------------
-  if (isLoopsConfigured()) {
-    try {
-      await sendTransactional({
-        to: parentEmail,
-        transactionalId: 'registration_confirmation',
-        dataVariables: { dancer: `${m.firstName} ${m.lastName}`, total: tuition.total },
-      });
-    } catch {
-      // Non-fatal: registration succeeds even if the email fails.
-    }
-  }
+  // No payment plan is created here — this dancer isn't on Debbie's
+  // spreadsheet, so she needs to set the price before anything is billed.
+  // She reviews it from the admin Dancers list ("Needs pricing"), sets a
+  // plan, and that approval is what notifies the family to finalize payment.
+  const { data: classNames } = await admin.from('classes').select('name').in('id', classIds);
+  await sendAdminAlert(`New registration needs pricing — ${m.firstName} ${m.lastName}`, [
+    `${m.firstName} ${m.lastName} just registered (not on the spreadsheet) and needs a price set before they can pay.`,
+    `Parent: ${parentEmail}`,
+    `Classes: ${(classNames ?? []).map((c) => c.name).join(', ') || 'none selected'}`,
+    `Requested plan: ${planType === 'quarterly' ? 'Quarterly' : 'Paid in full'}`,
+    `Set their price from the admin Dancers list — approving it will email them to finalize payment.`,
+  ]);
 
   redirect('/dashboard?registered=1');
 }

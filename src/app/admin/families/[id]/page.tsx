@@ -95,9 +95,22 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
               Cancelled
             </span>
           )}
+          {d.status === 'pending_pricing' && (
+            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">
+              Needs pricing
+            </span>
+          )}
         </div>
         <p className="text-sm text-brand-ink/60">{family?.parent1_email}</p>
       </div>
+
+      {d.status === 'pending_pricing' && (
+        <div className="rounded-md bg-orange-50 px-4 py-3 text-sm text-orange-900">
+          Registered directly — not on the spreadsheet. Waivers and their class spot are already
+          saved below. Set a price using <strong>Create custom payment plan</strong> in Payments —
+          saving it approves this dancer and emails the family to finalize payment.
+        </div>
+      )}
 
       {/* ===== Payments ===== */}
       <section className="space-y-4 rounded-lg border border-brand-ink/10 bg-white p-5">

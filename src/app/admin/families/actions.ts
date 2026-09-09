@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { recalcDefaultPlanForMember } from '@/lib/admin/billing';
 import { findDueInstallment, attemptInstallmentCharge } from '@/lib/billing/autoCharge';
 import { todayIso, addDays } from '@/lib/billing/dueDates';
+import { sendPlainEmail } from '@/lib/integrations/adminAlert';
 import { money } from '@/lib/format';
 
 export interface ActionState {
@@ -127,8 +128,33 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
   });
   if (error) return { error: 'Could not create the custom plan.' };
 
+  // If this dancer was awaiting pricing (registered directly, not from the
+  // spreadsheet), setting their first plan IS the approval — activate them
+  // and let the family know they can now finalize payment.
+  const { data: dancer } = await supabase
+    .from('family_members')
+    .select('status, first_name, last_name, family:family_accounts(parent1_email)')
+    .eq('id', memberId)
+    .maybeSingle();
+  let approved = false;
+  if (dancer?.status === 'pending_pricing') {
+    await supabase.from('family_members').update({ status: 'active' }).eq('id', memberId);
+    const parentEmail = (dancer as any).family?.parent1_email;
+    if (parentEmail) {
+      await sendPlainEmail(
+        parentEmail,
+        `${dancer.first_name}'s registration is approved — MacVoy School of Irish Dance`,
+        [
+          `Good news — ${dancer.first_name} ${dancer.last_name}'s registration has been approved and priced.`,
+          `Log in to your account to see the payment schedule and finalize payment: https://www.macvoyirishdance.com/dashboard/payments`,
+        ],
+      );
+    }
+    approved = true;
+  }
+
   revalidateDancer(memberId);
-  return { success: 'Custom plan created.' };
+  return { success: approved ? 'Plan created — dancer approved and family notified.' : 'Custom plan created.' };
 }
 
 const PAYMENT_METHODS = new Set(['cash', 'e-transfer', 'cheque', 'other']);

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getFamilyAccount, isAdmin } from '@/lib/auth';
+import { createClient } from '@/lib/supabase/server';
 import {
   getActiveEnrollments,
   getSessionsInRange,
@@ -51,12 +52,19 @@ export default async function OverviewPage({
   const in7Days = addDays(today, 7);
   const in30Days = addDays(today, 30);
 
-  const [enrollments, upcoming, announcements, readIds] = await Promise.all([
+  const supabase = await createClient();
+  const [enrollments, upcoming, announcements, readIds, pendingPricingRes] = await Promise.all([
     getActiveEnrollments(account.id),
     getUpcomingInstallments(account.id, today),
     getAnnouncements(),
     getReadAnnouncementIds(account.id),
+    supabase
+      .from('family_members')
+      .select('first_name, last_name')
+      .eq('family_account_id', account.id)
+      .eq('status', 'pending_pricing'),
   ]);
+  const pendingPricingDancers = pendingPricingRes.data ?? [];
 
   const classIds = [...new Set(enrollments.map((e) => e.classId))];
   const upcomingClasses = await getSessionsInRange(classIds, today, in7Days);
@@ -81,6 +89,14 @@ export default async function OverviewPage({
       {registered && (
         <div className="rounded-md bg-green-50 px-4 py-3 text-sm text-green-800">
           Registration complete! Find the new dancer under Profile.
+        </div>
+      )}
+
+      {pendingPricingDancers.length > 0 && (
+        <div className="rounded-md bg-orange-50 px-4 py-3 text-sm text-orange-900">
+          {pendingPricingDancers.map((d) => `${d.first_name} ${d.last_name}`).join(', ')}
+          {pendingPricingDancers.length === 1 ? ' is' : ' are'} awaiting confirmation from the
+          school before payment is set up — we&apos;ll email you once it&apos;s ready.
         </div>
       )}
 

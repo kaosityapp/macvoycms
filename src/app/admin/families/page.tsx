@@ -15,15 +15,17 @@ const BADGE: Record<PayStatus, string> = {
   no_plan: 'bg-brand-ink/10 text-brand-ink/60',
 };
 
-type Status = 'pending' | 'confirmed' | 'cancelled';
+type Status = 'pending' | 'needs_pricing' | 'confirmed' | 'cancelled';
 
 const STATUS_BADGE: Record<Status, string> = {
   pending: 'bg-amber-100 text-amber-800',
+  needs_pricing: 'bg-orange-100 text-orange-800',
   confirmed: 'bg-green-100 text-green-800',
   cancelled: 'bg-brand-ink/10 text-brand-ink/60',
 };
 const STATUS_LABEL: Record<Status, string> = {
   pending: 'Pending',
+  needs_pricing: 'Needs pricing',
   confirmed: 'Confirmed',
   cancelled: 'Cancelled',
 };
@@ -66,7 +68,8 @@ export default async function DancersPage({
   const confirmedRows = ((confirmedRes.data ?? []) as any[]).map((m) => {
     const plan = (m.payment_plans ?? []).find((p: any) => p.status === 'active') ?? null;
     const summary = summarizePayments(plan, m.payments ?? [], today, billingActive);
-    const status: Status = m.status === 'removed' ? 'cancelled' : 'confirmed';
+    const status: Status =
+      m.status === 'removed' ? 'cancelled' : m.status === 'pending_pricing' ? 'needs_pricing' : 'confirmed';
     return {
       key: `c-${m.id}`,
       href: `/admin/families/${m.id}`,
@@ -110,21 +113,22 @@ export default async function DancersPage({
   );
 
   const allRows = [...confirmedRows, ...pendingRows].sort((a, b) => a.name.localeCompare(b.name));
+  const STATUS_VALUES: Status[] = ['pending', 'needs_pricing', 'confirmed', 'cancelled'];
   const activeFilter: Status | 'all' =
-    statusFilter === 'pending' || statusFilter === 'confirmed' || statusFilter === 'cancelled'
-      ? statusFilter
-      : 'all';
+    statusFilter && STATUS_VALUES.includes(statusFilter as Status) ? (statusFilter as Status) : 'all';
   const rows = activeFilter === 'all' ? allRows : allRows.filter((r) => r.status === activeFilter);
 
   const counts = {
     all: allRows.length,
     pending: allRows.filter((r) => r.status === 'pending').length,
+    needs_pricing: allRows.filter((r) => r.status === 'needs_pricing').length,
     confirmed: allRows.filter((r) => r.status === 'confirmed').length,
     cancelled: allRows.filter((r) => r.status === 'cancelled').length,
   };
 
   const TABS: { value: Status | 'all'; label: string }[] = [
     { value: 'all', label: `All (${counts.all})` },
+    { value: 'needs_pricing', label: `Needs pricing (${counts.needs_pricing})` },
     { value: 'pending', label: `Pending (${counts.pending})` },
     { value: 'confirmed', label: `Confirmed (${counts.confirmed})` },
     { value: 'cancelled', label: `Cancelled (${counts.cancelled})` },
@@ -195,7 +199,9 @@ export default async function DancersPage({
 
       <p className="text-xs text-brand-ink/50">
         <strong>Pending</strong> = imported from the spreadsheet but not yet confirmed by the family
-        — click through to edit their details, classes, or payment plan. <strong>Confirmed</strong> =
+        — click through to edit their details, classes, or payment plan. <strong>Needs pricing</strong>{' '}
+        = registered directly (not on the spreadsheet) — waivers and class spot are already saved,
+        set a price on their profile to approve and notify them to pay. <strong>Confirmed</strong> =
         registration complete. <strong>Cancelled</strong> = the school cancelled this dancer — their
         record, payment history, and waivers are kept, only future billing and their class spot are
         removed.
