@@ -29,10 +29,6 @@ export default function WelcomePage() {
         <div className="mx-auto mt-4 max-w-xl space-y-2 text-brand-ink/80">
           <p>Mississauga classes on Tuesday evenings.</p>
           <p>Pickering classes on Monday and Thursday evenings.</p>
-          <p>
-            Fall registration will open on <strong>Wednesday, August 19th 2026</strong>.
-          </p>
-          <p>New students are welcome at any time.</p>
         </div>
 
         <Link
