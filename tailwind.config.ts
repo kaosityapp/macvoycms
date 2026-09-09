@@ -12,7 +12,7 @@ const config: Config = {
           pink: '#d10f8c', // deep brand magenta — primary buttons/links (white-text safe)
           pinkdark: '#a80c70', // hover / pressed
           pinkbright: '#fe2bfe', // literal logo magenta — decorative accents only
-          bg: '#f9fafb', // page background
+          bg: '#fefefe', // page background — matches the logo PNG's exact background so it blends in seamlessly
         },
       },
       fontFamily: {
