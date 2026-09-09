@@ -213,11 +213,13 @@ export async function retryInstallmentNow(_prev: ActionState, formData: FormData
   const supabase = await createClient();
   const { data: plan } = await supabase
     .from('payment_plans')
-    .select('id, family_member_id, installment_schedule, stored_card_token')
+    .select('id, family_member_id, installment_schedule, stored_card_token, stored_bank_customer_id, stored_bank_account_id')
     .eq('id', planId)
     .maybeSingle();
   if (!plan) return { error: 'Plan not found.' };
-  if (!plan.stored_card_token) return { error: 'No card on file for this dancer — ask the family to Pay Now and save a card first.' };
+  if (!plan.stored_card_token && !(plan.stored_bank_customer_id && plan.stored_bank_account_id)) {
+    return { error: 'No card or bank account on file for this dancer — ask the family to Pay Now and save one first.' };
+  }
 
   const schedule = Array.isArray(plan.installment_schedule) ? (plan.installment_schedule as any) : [];
   const { data: paidPayments } = await supabase
@@ -241,20 +243,16 @@ export async function retryInstallmentNow(_prev: ActionState, formData: FormData
 
   await supabase.from('payment_plans').update({ auto_charge: true }).eq('id', plan.id);
 
-  const outcome = await attemptInstallmentCharge(
-    supabase,
-    plan as { id: string; family_member_id: string; stored_card_token: string | null },
-    due.index,
-    due.amount,
-    schedule[due.index]?.date,
-    1,
-  );
+  const outcome = await attemptInstallmentCharge(supabase, plan, due.index, due.amount, schedule[due.index]?.date, 1);
 
   revalidateDancer(memberId);
   if ('error' in outcome) return { error: outcome.error };
+  if (outcome.settling) {
+    return { success: `Bank withdrawal of ${money(due.amount)} started — settlement can take a few days; we'll email a receipt once confirmed.` };
+  }
   return outcome.approved
     ? { success: `Charged ${money(due.amount)} — the receipt will appear once Helcim confirms it.` }
-    : { error: `Declined. Debbie has been notified — try a different card or contact the family.` };
+    : { error: `Declined. Debbie has been notified — try a different card/account or contact the family.` };
 }
 
 /** Push one installment's due date out a few days (a family needs a bit more time). */

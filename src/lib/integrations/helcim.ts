@@ -17,7 +17,7 @@
  * Reference: https://devdocs.helcim.com/docs/overview-of-helcimpayjs
  */
 
-import { createHmac, createHash } from 'crypto';
+import { createHmac, createHash, randomUUID } from 'crypto';
 
 const API_BASE = 'https://api.helcim.com/v2';
 
@@ -219,6 +219,88 @@ export async function getCardTransaction(id: string): Promise<CardTransaction> {
     cardToken: data.cardToken ? String(data.cardToken) : undefined,
     customerCode: data.customerCode ? String(data.customerCode) : undefined,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Recurring bank (ACH/EFT) payments.
+//
+// Structurally different from cards: there's no confirmed Helcim webhook
+// event for ACH (per Helcim support), and charging a stored bank account
+// needs Helcim's numeric customerId + bankAccountId (not one opaque token).
+// Settlement is asynchronous and can take days, discovered by polling
+// GET /ach/transactions/{id} — statusAuth 1 + statusClearing 1 means
+// actually settled; a 200 from the withdraw call only means the withdrawal
+// was *created*, not that funds cleared. See migration 0016 + autoCharge.ts.
+// ---------------------------------------------------------------------------
+
+/** Resolve Helcim's numeric customerId from the customerCode HelcimPay.js returns. */
+export async function lookupCustomerIdByCode(customerCode: string): Promise<string | null> {
+  const data = await helcimFetch(`/customers?customerCode=${encodeURIComponent(customerCode)}`, {
+    method: 'GET',
+  });
+  const match = Array.isArray(data) ? data[0] : Array.isArray(data?.data) ? data.data[0] : data;
+  return match?.id != null ? String(match.id) : null;
+}
+
+export interface AchTransaction {
+  id: string;
+  bankAccountId: string | null;
+  amount: number;
+  invoiceNumber?: string;
+  customerCode?: string;
+  /** 1=Approved, 2=Declined, 4=Voided/cancelled, 5=Awaiting bank authorization. */
+  statusAuth: number | null;
+  /** 0=In progress, 1=Settled/approved, 4=Settled/declined. */
+  statusClearing: number | null;
+}
+
+/** Poll a bank transaction's current settlement status. */
+export async function getAchTransaction(id: string): Promise<AchTransaction> {
+  const data = await helcimFetch(`/ach/transactions/${id}`, { method: 'GET' });
+  return {
+    id: String(data.id ?? id),
+    bankAccountId: data.bankAccountId != null ? String(data.bankAccountId) : null,
+    amount: Number(data.amount ?? 0),
+    invoiceNumber: data.invoiceNumber ? String(data.invoiceNumber) : undefined,
+    customerCode: data.customerCode ? String(data.customerCode) : undefined,
+    statusAuth: data.statusAuth != null ? Number(data.statusAuth) : null,
+    statusClearing: data.statusClearing != null ? Number(data.statusClearing) : null,
+  };
+}
+
+export interface ChargeStoredBankAccountInput {
+  amount: number;
+  bankAccountId: string;
+  customerId: string;
+  currency?: 'CAD' | 'USD';
+}
+
+export interface WithdrawResult {
+  transactionId: string;
+}
+
+/**
+ * Initiate a withdrawal from a previously-saved bank account (recurring
+ * cron only). Success here means the withdrawal was *created* — it is NOT
+ * settled yet. The cron polls getAchTransaction on subsequent runs to find
+ * out whether it actually cleared.
+ */
+export async function chargeStoredBankAccount(input: ChargeStoredBankAccountInput): Promise<WithdrawResult> {
+  const data = await helcimFetch('/ach/withdraw', {
+    method: 'PUT',
+    idempotencyKey: randomUUID(),
+    body: JSON.stringify({
+      bankAccountId: Number(input.bankAccountId),
+      customerId: Number(input.customerId),
+      amount: input.amount,
+      currencyId: input.currency === 'USD' ? 2 : 1,
+    }),
+  });
+  const transactionId = data.transaction?.id ?? data.id;
+  if (transactionId == null) {
+    throw new Error('Helcim ACH withdraw did not return a transaction id.');
+  }
+  return { transactionId: String(transactionId) };
 }
 
 export function isHelcimConfigured(): boolean {

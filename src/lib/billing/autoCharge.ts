@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
-import { chargeStoredCard } from '@/lib/integrations/helcim';
+import { chargeStoredCard, chargeStoredBankAccount } from '@/lib/integrations/helcim';
 import { sendAdminAlert } from '@/lib/integrations/adminAlert';
 import { money, formatDateShort } from '@/lib/format';
 
@@ -18,6 +18,14 @@ export type AdminClient = SupabaseClient<Database>;
 export interface InstallmentSchedule {
   date: string;
   amount: number;
+}
+
+export interface RecurringPlan {
+  id: string;
+  family_member_id: string;
+  stored_card_token: string | null;
+  stored_bank_customer_id?: string | null;
+  stored_bank_account_id?: string | null;
 }
 
 /** The first due-but-unpaid installment by cumulative amount, or null. */
@@ -46,22 +54,33 @@ export async function dancerNameFor(admin: AdminClient, familyMemberId: string):
 }
 
 /**
- * Attempt a charge for one installment and record the outcome. On failure,
- * marks the intent 'failed' directly (never relies solely on the webhook —
- * a thrown error means no Helcim transaction, and therefore no webhook,
- * ever existed) and sends an admin alert. `attemptNumber` drives the
+ * Attempt a charge for one installment and record the outcome. Prefers a
+ * saved card if both are somehow on file. `attemptNumber` drives the
  * 2-strikes-and-auto_charge-off policy; pass 1 to always allow (e.g. an
  * admin-forced retry starts a fresh count).
+ *
+ * Card: same-day approve/decline via chargeStoredCard — a thrown error or a
+ * decline is a known-final outcome, handled here directly (never relies
+ * solely on the webhook — a thrown error means no Helcim transaction, and
+ * therefore no webhook, ever existed).
+ *
+ * Bank (ACH/EFT): chargeStoredBankAccount only *creates* the withdrawal —
+ * Helcim confirms there's no webhook for ACH, so whether it actually
+ * settled is unknown until the poller checks GET /ach/transactions/{id} on
+ * a later cron run. A successful create is recorded as 'settling', not
+ * approved/failed — see checkAchSettlements in the cron route.
  */
 export async function attemptInstallmentCharge(
   admin: AdminClient,
-  plan: { id: string; family_member_id: string; stored_card_token: string | null },
+  plan: RecurringPlan,
   targetIndex: number,
   targetAmount: number,
   dueDate: string | undefined,
   attemptNumber: number,
-): Promise<{ approved: boolean; reference: string } | { error: string }> {
-  if (!plan.stored_card_token) return { error: 'No card on file for this plan.' };
+): Promise<{ approved: boolean; reference: string; settling?: boolean } | { error: string }> {
+  const usingCard = Boolean(plan.stored_card_token);
+  const usingBank = !usingCard && Boolean(plan.stored_bank_customer_id && plan.stored_bank_account_id);
+  if (!usingCard && !usingBank) return { error: 'No card or bank account on file for this plan.' };
 
   const dancerName = await dancerNameFor(admin, plan.family_member_id);
   const reference = `MV-AUTO-${randomBytes(5).toString('hex')}`;
@@ -79,17 +98,41 @@ export async function attemptInstallmentCharge(
     .select('id')
     .single();
 
-  try {
-    const charge = await chargeStoredCard({
-      amount: targetAmount,
-      cardToken: plan.stored_card_token,
-      reference,
-    });
-    if (!charge.approved) {
-      await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, 'Card declined');
+  if (usingCard) {
+    try {
+      const charge = await chargeStoredCard({
+        amount: targetAmount,
+        cardToken: plan.stored_card_token!,
+        reference,
+      });
+      if (!charge.approved) {
+        await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, 'Card declined');
+      }
+      return { approved: charge.approved, reference };
+    } catch (err) {
+      await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, (err as Error).message);
+      return { approved: false, reference };
     }
-    return { approved: charge.approved, reference };
+  }
+
+  // Bank withdrawal.
+  try {
+    const withdrawal = await chargeStoredBankAccount({
+      amount: targetAmount,
+      bankAccountId: plan.stored_bank_account_id!,
+      customerId: plan.stored_bank_customer_id!,
+    });
+    if (intent?.id) {
+      await admin
+        .from('payment_intents')
+        .update({ status: 'settling', helcim_transaction_id: withdrawal.transactionId })
+        .eq('id', intent.id);
+    }
+    return { approved: false, settling: true, reference };
   } catch (err) {
+    // A thrown error here means the withdrawal was never created at all —
+    // a genuine, immediate failure (unlike "settling", which just means
+    // "created, outcome pending").
     await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, (err as Error).message);
     return { approved: false, reference };
   }
@@ -123,7 +166,7 @@ export async function handleFailedCharge(
       `${dancerName}'s automatic payment of ${money(amount)} (due ${due}) failed.`,
       `Reason: ${reason}.`,
       exhausted
-        ? `This was the 2nd attempt, so automatic charging has been turned off for this dancer’s plan. Please follow up with the family directly (e.g. ask for a new card) — it will not retry again on its own.`
+        ? `This was the 2nd attempt, so automatic charging has been turned off for this dancer’s plan. Please follow up with the family directly (e.g. ask for a new card or bank account) — it will not retry again on its own.`
         : `This was attempt 1 of 2 — it will automatically retry tomorrow before giving up.`,
     ],
   );

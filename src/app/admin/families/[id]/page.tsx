@@ -49,7 +49,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, created_at,
        family:family_accounts(id, parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(id, status, class:classes(id, name, day_of_week, start_time, end_time, is_private, location:locations(name))),
-       payment_plans(id, plan_type, total_amount, installment_schedule, status, auto_charge, stored_card_token),
+       payment_plans(id, plan_type, total_amount, installment_schedule, status, auto_charge, stored_card_token, stored_bank_customer_id, stored_bank_account_id),
        payments(id, amount, category, paid_at, method, note),
        consents(type, agreed_at),
        order_items(item_type, amount)`,
@@ -157,7 +157,10 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
                           memberId={d.id}
                           planId={activePlan.id}
                           installmentIndex={idx}
-                          hasCard={Boolean(activePlan.stored_card_token)}
+                          hasPaymentMethod={Boolean(
+                            activePlan.stored_card_token ||
+                              (activePlan.stored_bank_customer_id && activePlan.stored_bank_account_id),
+                          )}
                         />
                       )}
                     </span>

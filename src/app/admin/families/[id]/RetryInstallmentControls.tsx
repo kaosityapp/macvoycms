@@ -28,19 +28,19 @@ export function RetryInstallmentControls({
   memberId,
   planId,
   installmentIndex,
-  hasCard,
+  hasPaymentMethod,
 }: {
   memberId: string;
   planId: string;
   installmentIndex: number;
-  hasCard: boolean;
+  hasPaymentMethod: boolean;
 }) {
   const [retryState, retryAction] = useActionState<ActionState, FormData>(retryInstallmentNow, {});
   const [pushState, pushAction] = useActionState<ActionState, FormData>(pushInstallmentDueDate, {});
 
   return (
     <span className="flex flex-wrap items-center gap-2">
-      {hasCard && (
+      {hasPaymentMethod && (
         <form action={retryAction}>
           <input type="hidden" name="member_id" value={memberId} />
           <input type="hidden" name="plan_id" value={planId} />

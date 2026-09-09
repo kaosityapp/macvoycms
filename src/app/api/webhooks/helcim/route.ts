@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyWebhookSignature, getCardTransaction } from '@/lib/integrations/helcim';
 import { dancerNameFor } from '@/lib/billing/autoCharge';
-import { sendAdminAlert, sendPlainEmail } from '@/lib/integrations/adminAlert';
-import { money, formatDateLong } from '@/lib/format';
+import { sendPaymentReceipt } from '@/lib/billing/receipts';
+import { sendAdminAlert } from '@/lib/integrations/adminAlert';
 
 /**
  * Helcim webhook — the single source of truth for recording a completed
@@ -106,24 +106,7 @@ export async function POST(request: NextRequest) {
     // Receipt to the family — Helcim's own account notifications only go to
     // the merchant contact (Debbie), not the customer, so this is the only
     // thing that actually emails the person who paid.
-    const { data: receiptDancer } = await admin
-      .from('family_members')
-      .select('first_name, last_name, family:family_accounts(parent1_email)')
-      .eq('id', intent.family_member_id)
-      .maybeSingle();
-    const parentEmail = (receiptDancer as any)?.family?.parent1_email;
-    if (parentEmail) {
-      const paidAmount = Number(txn.amount || intent.amount);
-      await sendPlainEmail(
-        parentEmail,
-        `Payment received — ${money(paidAmount)} — MacVoy School of Irish Dance`,
-        [
-          `We received your payment of ${money(paidAmount)} for ${receiptDancer?.first_name} ${receiptDancer?.last_name}, paid ${formatDateLong(new Date().toISOString().slice(0, 10))}.`,
-          `Reference: ${txn.transactionId}`,
-          `You can see your full payment history anytime at https://www.macvoyirishdance.com/dashboard/payments`,
-        ],
-      );
-    }
+    await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.transactionId);
 
     // Capture the stored card and flip auto_charge on only if the family
     // explicitly checked "save card for automatic payments" on this checkout.

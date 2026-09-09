@@ -29,7 +29,7 @@ function loadHelcimScript(): Promise<void> {
   });
 }
 
-type Phase = 'idle' | 'starting' | 'open' | 'confirming' | 'done' | 'error';
+type Phase = 'idle' | 'starting' | 'open' | 'confirming' | 'done' | 'settling' | 'error';
 
 export function PayNowButton({
   memberId,
@@ -82,7 +82,7 @@ export function PayNowButton({
         setPhase('confirming');
         const confirmed = await confirmPaymentClientSide(reference, eventMessage);
         if (confirmed.ok) {
-          setPhase('done');
+          setPhase(confirmed.settling ? 'settling' : 'done');
           setTimeout(() => router.refresh(), 1200);
         } else {
           setError(confirmed.error ?? 'Payment could not be verified.');
@@ -107,6 +107,13 @@ export function PayNowButton({
   if (phase === 'done') {
     return <span className="text-sm font-semibold text-green-700">Payment received ✓</span>;
   }
+  if (phase === 'settling') {
+    return (
+      <span className="text-sm font-semibold text-brand-pink">
+        Bank withdrawal started — settlement can take a few days; we&apos;ll email a receipt once confirmed.
+      </span>
+    );
+  }
 
   return (
     <div className="flex flex-col items-end gap-1">
@@ -118,7 +125,7 @@ export function PayNowButton({
             onChange={(e) => setSaveCard(e.target.checked)}
             className="h-3.5 w-3.5 accent-brand-pink"
           />
-          Save card for automatic payments (credit card only, not bank payment)
+          Save for automatic payments
         </label>
         <button
           type="button"

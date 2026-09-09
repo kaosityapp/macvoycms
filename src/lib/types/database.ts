@@ -480,6 +480,10 @@ export type Database = {
       payment_intents: {
         Row: {
           amount: number
+          bank_account_id: string | null
+          bank_customer_code: string | null
+          bank_customer_id: string | null
+          bank_token: string | null
           category: string
           checkout_token: string | null
           created_at: string
@@ -495,6 +499,10 @@ export type Database = {
         }
         Insert: {
           amount: number
+          bank_account_id?: string | null
+          bank_customer_code?: string | null
+          bank_customer_id?: string | null
+          bank_token?: string | null
           category?: string
           checkout_token?: string | null
           created_at?: string
@@ -510,6 +518,10 @@ export type Database = {
         }
         Update: {
           amount?: number
+          bank_account_id?: string | null
+          bank_customer_code?: string | null
+          bank_customer_id?: string | null
+          bank_token?: string | null
           category?: string
           checkout_token?: string | null
           created_at?: string
@@ -550,6 +562,8 @@ export type Database = {
           installment_schedule: Json
           plan_type: string
           status: string
+          stored_bank_account_id: string | null
+          stored_bank_customer_id: string | null
           stored_card_token: string | null
           stored_customer_code: string | null
           total_amount: number
@@ -564,6 +578,8 @@ export type Database = {
           installment_schedule?: Json
           plan_type: string
           status?: string
+          stored_bank_account_id?: string | null
+          stored_bank_customer_id?: string | null
           stored_card_token?: string | null
           stored_customer_code?: string | null
           total_amount: number
@@ -578,6 +594,8 @@ export type Database = {
           installment_schedule?: Json
           plan_type?: string
           status?: string
+          stored_bank_account_id?: string | null
+          stored_bank_customer_id?: string | null
           stored_card_token?: string | null
           stored_customer_code?: string | null
           total_amount?: number
