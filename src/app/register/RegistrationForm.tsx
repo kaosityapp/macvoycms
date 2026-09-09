@@ -356,7 +356,7 @@ export function RegistrationForm({
                 <summary className="cursor-pointer select-none text-brand-pink">
                   Read {policy.title}
                 </summary>
-                <p className="mt-2">{policy.text}</p>
+                <p className="mt-2 whitespace-pre-line">{policy.text}</p>
               </details>
             </div>
           ))}
