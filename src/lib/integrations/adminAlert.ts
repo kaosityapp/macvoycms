@@ -23,7 +23,12 @@ export function isResendConfigured(): boolean {
 }
 
 /** Send a plain email to an arbitrary recipient (e.g. a family, once approved). */
-export async function sendPlainEmail(to: string | string[], subject: string, bodyLines: string[]): Promise<void> {
+export async function sendPlainEmail(
+  to: string | string[],
+  subject: string,
+  bodyLines: string[],
+  opts?: { replyTo?: string },
+): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const recipients = Array.isArray(to) ? to : [to];
   if (!apiKey || recipients.length === 0) {
@@ -41,7 +46,13 @@ export async function sendPlainEmail(to: string | string[], subject: string, bod
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from, to: recipients, subject, html }),
+      body: JSON.stringify({
+        from,
+        to: recipients,
+        subject,
+        html,
+        ...(opts?.replyTo ? { reply_to: opts.replyTo } : {}),
+      }),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');

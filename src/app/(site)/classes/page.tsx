@@ -35,7 +35,7 @@ export default async function ClassesPage() {
   const groups = excludeFromOpenRegistration(allGroups);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-16">
+    <div className="mx-auto max-w-6xl px-6 py-16">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-brand-pink">Classes</h1>
@@ -53,48 +53,54 @@ export default async function ClassesPage() {
         </Link>
       </div>
 
-      {groups.length === 0 ? (
-        <p className="mt-10 rounded-lg border border-brand-ink/10 bg-white p-6 text-brand-ink/70">
-          The upcoming schedule will be posted soon — please check back.
-        </p>
-      ) : (
-        <div className="mt-10 space-y-10">
-          {groups.map((group) => (
-            <section key={group.location.id}>
-              <h2 className="text-xl font-bold text-brand-ink">{group.location.name}</h2>
-              <ul className="mt-4 divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
-                {group.classes.map((c) => (
-                  <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 py-4">
-                    <div>
-                      <span className="font-medium text-brand-ink">{c.name}</span>
-                      <span className="ml-2 text-sm text-brand-ink/60">{ageLabel(c.age_min, c.age_max)}</span>
-                    </div>
-                    <div className="text-sm text-brand-ink/70">
-                      {c.day_of_week} · {formatTime(c.start_time)}–{formatTime(c.end_time)}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
+      <div className="mt-10 grid gap-12 lg:grid-cols-[3fr_2fr]">
+        {/* Schedule */}
+        <div>
+          {groups.length === 0 ? (
+            <p className="rounded-lg border border-brand-ink/10 bg-white p-6 text-brand-ink/70">
+              The upcoming schedule will be posted soon — please check back.
+            </p>
+          ) : (
+            <div className="space-y-10">
+              {groups.map((group) => (
+                <section key={group.location.id}>
+                  <h2 className="text-xl font-bold text-brand-ink">{group.location.name}</h2>
+                  <ul className="mt-4 divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
+                    {group.classes.map((c) => (
+                      <li key={c.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 py-4">
+                        <div>
+                          <span className="font-medium text-brand-ink">{c.name}</span>
+                          <span className="ml-2 text-sm text-brand-ink/60">{ageLabel(c.age_min, c.age_max)}</span>
+                        </div>
+                        <div className="text-sm text-brand-ink/70">
+                          {c.day_of_week} · {formatTime(c.start_time)}–{formatTime(c.end_time)}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-10 rounded-lg bg-brand-pink/5 px-5 py-4 text-sm text-brand-ink/80">
+            Zoom classes and private lessons available upon request.
+          </p>
         </div>
-      )}
 
-      <p className="mt-10 rounded-lg bg-brand-pink/5 px-5 py-4 text-sm text-brand-ink/80">
-        Zoom classes and private lessons available upon request.
-      </p>
-
-      <section className="mt-16">
-        <h2 className="text-2xl font-bold text-brand-pink">Why learn Irish dance?</h2>
-        <ul className="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          {WHY_IRISH_DANCE.map((reason) => (
-            <li key={reason} className="flex items-start gap-2 text-brand-ink/80">
-              <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-pink" aria-hidden />
-              {reason}
-            </li>
-          ))}
-        </ul>
-      </section>
+        {/* Why learn Irish dance? */}
+        <aside className="rounded-lg border border-brand-ink/10 bg-white p-6 lg:sticky lg:top-6 lg:self-start">
+          <h2 className="text-xl font-bold text-brand-pink">Why learn Irish dance?</h2>
+          <ul className="mt-5 space-y-2.5">
+            {WHY_IRISH_DANCE.map((reason) => (
+              <li key={reason} className="flex items-start gap-2 text-brand-ink/80">
+                <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-pink" aria-hidden />
+                {reason}
+              </li>
+            ))}
+          </ul>
+        </aside>
+      </div>
     </div>
   );
 }
