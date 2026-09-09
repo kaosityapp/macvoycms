@@ -32,6 +32,7 @@ interface PendingDancer {
   first_name: string;
   last_name: string;
   total_amount?: number;
+  payments_received?: { amount: number }[];
 }
 
 export default async function DancersPage({
@@ -84,16 +85,28 @@ export default async function DancersPage({
   });
 
   const pendingRows = ((pendingRes.data ?? []) as any[]).flatMap((p) =>
-    ((p.dancers ?? []) as PendingDancer[]).map((d, i) => ({
-      key: `p-${p.id}-${i}`,
-      href: `/admin/pending/${p.id}`,
-      name: `${d.first_name} ${d.last_name}`,
-      email: p.email,
-      status: 'pending' as Status,
-      paymentLabel: d.total_amount ? `Plan set · ${money(d.total_amount)}` : 'No plan set',
-      paymentBadge: d.total_amount ? 'bg-brand-pink/10 text-brand-pink' : 'bg-brand-ink/10 text-brand-ink/60',
-      nextPayment: '—',
-    })),
+    ((p.dancers ?? []) as PendingDancer[]).map((d, i) => {
+      const received = (d.payments_received ?? []).reduce((sum, r) => sum + Number(r.amount), 0);
+      let paymentLabel = 'No plan set';
+      let paymentBadge = 'bg-brand-ink/10 text-brand-ink/60';
+      if (received > 0) {
+        paymentLabel = `Partial · ${money(received)} of ${money(d.total_amount ?? 0)}`;
+        paymentBadge = 'bg-amber-100 text-amber-800';
+      } else if (d.total_amount) {
+        paymentLabel = `Plan set · ${money(d.total_amount)}`;
+        paymentBadge = 'bg-brand-pink/10 text-brand-pink';
+      }
+      return {
+        key: `p-${p.id}-${i}`,
+        href: `/admin/pending/${p.id}`,
+        name: `${d.first_name} ${d.last_name}`,
+        email: p.email,
+        status: 'pending' as Status,
+        paymentLabel,
+        paymentBadge,
+        nextPayment: '—',
+      };
+    }),
   );
 
   const allRows = [...confirmedRows, ...pendingRows].sort((a, b) => a.name.localeCompare(b.name));

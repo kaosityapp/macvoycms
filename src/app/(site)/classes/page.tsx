@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getCurrentSeason, getSeasonClassesGrouped } from '@/lib/season';
+import { getCurrentSeason, getSeasonClassesGrouped, excludeFromOpenRegistration } from '@/lib/season';
 import { formatTime } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,8 @@ function ageLabel(min: number | null, max: number | null): string {
 
 export default async function ClassesPage() {
   const season = await getCurrentSeason();
-  const groups = season ? await getSeasonClassesGrouped(season.id) : [];
+  const allGroups = season ? await getSeasonClassesGrouped(season.id) : [];
+  const groups = excludeFromOpenRegistration(allGroups);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-16">

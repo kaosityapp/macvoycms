@@ -8,6 +8,7 @@ import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp } f
 import { POLICIES } from '@/lib/consents/policies';
 import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
+import { RecordPaymentForm } from './RecordPaymentForm';
 import { PasswordResetButton } from './PasswordResetButton';
 import { DeleteDancerButton } from './DeleteDancerButton';
 import { CancelStudentButton } from './CancelStudentButton';
@@ -47,7 +48,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
        family:family_accounts(id, parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(id, status, class:classes(id, name, day_of_week, start_time, end_time, is_private, location:locations(name))),
        payment_plans(id, plan_type, total_amount, installment_schedule, status),
-       payments(id, amount, category, paid_at),
+       payments(id, amount, category, paid_at, method, note),
        consents(type, agreed_at),
        order_items(item_type, amount)`,
     )
@@ -152,7 +153,12 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
               {paidPayments.map((p: any) => (
                 <li key={p.id} className="flex items-center justify-between py-1.5">
                   <span className="text-brand-ink">
-                    {money(p.amount)} <span className="capitalize text-brand-ink/50">· {p.category}</span>
+                    {money(p.amount)}{' '}
+                    <span className="capitalize text-brand-ink/50">
+                      · {p.category}
+                      {p.method && p.method !== 'helcim' ? ` · ${p.method}` : ''}
+                    </span>
+                    {p.note && <span className="text-brand-ink/40"> — {p.note}</span>}
                   </span>
                   <span className="text-xs text-brand-ink/50">{formatTimestamp(p.paid_at)}</span>
                 </li>
@@ -163,6 +169,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
 
         {/* Billing actions */}
         <div className="flex flex-wrap items-start gap-4 border-t border-brand-ink/10 pt-4">
+          <RecordPaymentForm memberId={d.id} />
           <CustomPlanForm memberId={d.id} familyId={family?.id ?? ''} />
           {activePlan && (
             <details className="rounded-md border border-red-200 p-3">

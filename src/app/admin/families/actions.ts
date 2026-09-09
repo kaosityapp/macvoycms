@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { recalcDefaultPlanForMember } from '@/lib/admin/billing';
+import { money } from '@/lib/format';
 
 export interface ActionState {
   error?: string;
@@ -126,6 +127,47 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
 
   revalidateDancer(memberId);
   return { success: 'Custom plan created.' };
+}
+
+const PAYMENT_METHODS = new Set(['cash', 'e-transfer', 'cheque', 'other']);
+
+/** Record a payment Debbie received outside Helcim (cash, e-transfer, cheque). */
+export async function recordManualPayment(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const memberId = String(formData.get('member_id') ?? '');
+  if (!memberId) return { error: 'Missing dancer.' };
+
+  const amount = Number(formData.get('amount'));
+  if (!Number.isFinite(amount) || amount <= 0) return { error: 'Enter a valid amount.' };
+
+  const date = String(formData.get('date') ?? '').trim();
+  if (!date) return { error: 'Enter the date received.' };
+
+  const method = String(formData.get('method') ?? '');
+  if (!PAYMENT_METHODS.has(method)) return { error: 'Choose a payment method.' };
+
+  const note = String(formData.get('note') ?? '').trim() || null;
+
+  const supabase = await createClient();
+  const { data: plan } = await supabase
+    .from('payment_plans')
+    .select('id')
+    .eq('family_member_id', memberId)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  const { error } = await supabase.from('payments').insert({
+    family_member_id: memberId,
+    payment_plan_id: plan?.id ?? null,
+    amount,
+    category: 'tuition',
+    paid_at: new Date(date).toISOString(),
+    method,
+    note,
+  });
+  if (error) return { error: 'Could not record the payment.' };
+
+  revalidateDancer(memberId);
+  return { success: `${money(amount)} recorded.` };
 }
 
 /** Send a password-reset email to a family's login. */

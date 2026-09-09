@@ -32,6 +32,16 @@ export async function updatePendingRegistration(
   const parent1Name = s(formData, 'parent1_name');
   if (!parent1Name) return { error: 'Parent 1 name is required.' };
 
+  // Payment history (payments_received) isn't part of this form — carry it
+  // forward from the current row so a routine edit doesn't wipe it out.
+  const supabase = await createClient();
+  const { data: current } = await supabase
+    .from('pending_registrations')
+    .select('dancers')
+    .eq('id', pendingId)
+    .maybeSingle();
+  const existingDancers = (current?.dancers as any[]) ?? [];
+
   const dancers = [];
   for (let i = 0; i < dancerCount; i++) {
     const firstName = s(formData, `firstName_${i}`);
@@ -64,10 +74,10 @@ export async function updatePendingRegistration(
       plan_type: s(formData, `planType_${i}`) || 'custom',
       total_amount,
       installment_schedule,
+      payments_received: existingDancers[i]?.payments_received ?? undefined,
     });
   }
 
-  const supabase = await createClient();
   const { error } = await supabase
     .from('pending_registrations')
     .update({
@@ -84,6 +94,76 @@ export async function updatePendingRegistration(
   revalidatePath('/admin/families');
   revalidatePath(`/admin/pending/${pendingId}`);
   return { success: 'Saved.' };
+}
+
+const PAYMENT_METHODS = new Set(['cash', 'e-transfer', 'cheque', 'other']);
+
+/** Log a payment received from a family before their registration is confirmed. */
+export async function addPendingPayment(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const pendingId = s(formData, 'pending_id');
+  const dancerIndex = Number(s(formData, 'dancer_index'));
+  if (!pendingId || !Number.isInteger(dancerIndex)) return { error: 'Missing registration.' };
+
+  const amount = Number(s(formData, 'amount'));
+  if (!Number.isFinite(amount) || amount <= 0) return { error: 'Enter a valid amount.' };
+  const date = s(formData, 'date');
+  if (!date) return { error: 'Enter the date received.' };
+  const method = s(formData, 'method');
+  if (!PAYMENT_METHODS.has(method)) return { error: 'Choose a payment method.' };
+  const note = s(formData, 'note') || undefined;
+
+  const supabase = await createClient();
+  const { data: row } = await supabase
+    .from('pending_registrations')
+    .select('dancers')
+    .eq('id', pendingId)
+    .maybeSingle();
+  if (!row) return { error: 'Registration not found.' };
+
+  const dancers = (row.dancers as any[]) ?? [];
+  const dancer = dancers[dancerIndex];
+  if (!dancer) return { error: 'Dancer not found.' };
+
+  const payments = Array.isArray(dancer.payments_received) ? dancer.payments_received : [];
+  payments.push({ date, amount, method, note });
+  dancers[dancerIndex] = { ...dancer, payments_received: payments };
+
+  const { error } = await supabase
+    .from('pending_registrations')
+    .update({ dancers: dancers as unknown as Json })
+    .eq('id', pendingId);
+  if (error) return { error: 'Could not save the payment.' };
+
+  revalidatePath('/admin/families');
+  revalidatePath(`/admin/pending/${pendingId}`);
+  return { success: 'Payment recorded.' };
+}
+
+/** Remove a mistakenly-logged pending payment. */
+export async function removePendingPayment(formData: FormData): Promise<void> {
+  const pendingId = s(formData, 'pending_id');
+  const dancerIndex = Number(s(formData, 'dancer_index'));
+  const paymentIndex = Number(s(formData, 'payment_index'));
+  if (!pendingId || !Number.isInteger(dancerIndex) || !Number.isInteger(paymentIndex)) return;
+
+  const supabase = await createClient();
+  const { data: row } = await supabase
+    .from('pending_registrations')
+    .select('dancers')
+    .eq('id', pendingId)
+    .maybeSingle();
+  if (!row) return;
+
+  const dancers = (row.dancers as any[]) ?? [];
+  const dancer = dancers[dancerIndex];
+  if (!dancer || !Array.isArray(dancer.payments_received)) return;
+
+  dancer.payments_received = dancer.payments_received.filter((_: unknown, i: number) => i !== paymentIndex);
+  dancers[dancerIndex] = dancer;
+
+  await supabase.from('pending_registrations').update({ dancers: dancers as unknown as Json }).eq('id', pendingId);
+  revalidatePath('/admin/families');
+  revalidatePath(`/admin/pending/${pendingId}`);
 }
 
 /** Delete a pending registration entirely (e.g. entered by mistake). */

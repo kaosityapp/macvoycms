@@ -1,9 +1,16 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { updatePendingRegistration, deletePendingRegistration, type ActionState } from './actions';
+import {
+  updatePendingRegistration,
+  deletePendingRegistration,
+  addPendingPayment,
+  removePendingPayment,
+  type ActionState,
+} from './actions';
 import { Field, FormError, FormSuccess, SubmitButton, inputClass } from '@/components/ui';
-import { formatTime } from '@/lib/format';
+import { formatTime, formatDateShort, money } from '@/lib/format';
+import { todayIso } from '@/lib/billing/dueDates';
 
 interface ClassItem {
   id: string;
@@ -30,6 +37,7 @@ interface DancerPrefill {
   class_ids?: string[];
   plan_type?: string;
   installment_schedule?: { date: string; amount: number }[];
+  payments_received?: { date: string; amount: number; method: string; note?: string }[];
 }
 
 interface PendingInfo {
@@ -119,7 +127,7 @@ export function EditPendingForm({
       <section className="space-y-6">
         <h2 className="text-lg font-semibold text-brand-pink">Dancer(s)</h2>
         {dancers.map((d, i) => (
-          <DancerEditFields key={i} index={i} dancer={d} groups={groups} />
+          <DancerEditFields key={i} index={i} dancer={d} groups={groups} pendingId={pendingId} />
         ))}
       </section>
 
@@ -149,7 +157,17 @@ export function EditPendingForm({
   );
 }
 
-function DancerEditFields({ index, dancer, groups }: { index: number; dancer: DancerPrefill; groups: Group[] }) {
+function DancerEditFields({
+  index,
+  dancer,
+  groups,
+  pendingId,
+}: {
+  index: number;
+  dancer: DancerPrefill;
+  groups: Group[];
+  pendingId: string;
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set(dancer.class_ids ?? []));
   const existingInstallments = dancer.installment_schedule ?? [];
   const [rows, setRows] = useState<number[]>(
@@ -334,6 +352,67 @@ function DancerEditFields({ index, dancer, groups }: { index: number; dancer: Da
         </div>
         <p className="mt-1 text-xs text-brand-ink/50">Total is the sum of the installments above.</p>
       </div>
+
+      {/* Payment history — payments received before registration is confirmed */}
+      <PendingPaymentHistory pendingId={pendingId} dancerIndex={index} payments={dancer.payments_received ?? []} />
+    </div>
+  );
+}
+
+function PendingPaymentHistory({
+  pendingId,
+  dancerIndex,
+  payments,
+}: {
+  pendingId: string;
+  dancerIndex: number;
+  payments: { date: string; amount: number; method: string; note?: string }[];
+}) {
+  const [state, action] = useActionState<ActionState, FormData>(addPendingPayment, {});
+
+  return (
+    <div>
+      <h4 className="text-sm font-semibold text-brand-ink/80">Payment history</h4>
+      {payments.length === 0 ? (
+        <p className="mt-1 text-xs text-brand-ink/50">No payments received yet.</p>
+      ) : (
+        <ul className="mt-1 space-y-1">
+          {payments.map((p, i) => (
+            <li key={i} className="flex items-center justify-between text-sm">
+              <span className="text-brand-ink">
+                {money(p.amount)} — {formatDateShort(p.date)}{' '}
+                <span className="capitalize text-brand-ink/50">· {p.method}</span>
+                {p.note && <span className="text-brand-ink/40"> — {p.note}</span>}
+              </span>
+              <form action={removePendingPayment}>
+                <input type="hidden" name="pending_id" value={pendingId} />
+                <input type="hidden" name="dancer_index" value={dancerIndex} />
+                <input type="hidden" name="payment_index" value={i} />
+                <button type="submit" className="text-xs text-red-600 hover:underline">
+                  remove
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form action={action} className="mt-2 flex flex-wrap items-center gap-2">
+        <input type="hidden" name="pending_id" value={pendingId} />
+        <input type="hidden" name="dancer_index" value={dancerIndex} />
+        <FormError message={state.error} />
+        <FormSuccess message={state.success} />
+        <input name="amount" type="number" step="0.01" placeholder="Amount" required className={`${inputClass} w-24`} />
+        <input name="date" type="date" defaultValue={todayIso()} required className={`${inputClass} w-40`} />
+        <select name="method" defaultValue="e-transfer" className={`${inputClass} w-32`}>
+          <option value="e-transfer">E-transfer</option>
+          <option value="cash">Cash</option>
+          <option value="cheque">Cheque</option>
+          <option value="other">Other</option>
+        </select>
+        <input name="note" placeholder="Note (optional)" className={`${inputClass} w-40`} />
+        <SubmitButton pendingText="Adding…">Add</SubmitButton>
+      </form>
     </div>
   );
 }

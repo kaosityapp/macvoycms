@@ -21,6 +21,7 @@ interface DancerPrefill {
   plan_type?: string;
   total_amount: number;
   installment_schedule: { date: string; amount: number }[];
+  payments_received?: { date: string; amount: number; method: string; note?: string }[];
 }
 
 function s(formData: FormData, key: string): string {
@@ -157,15 +158,37 @@ export async function completePendingRegistration(
     }
 
     // Payment plan is never client-editable — always the school's figures.
+    let planId: string | undefined;
     if (original.total_amount > 0) {
-      const { error: planError } = await admin.from('payment_plans').insert({
-        family_member_id: memberId,
-        plan_type: original.plan_type || 'custom',
-        total_amount: original.total_amount,
-        installment_schedule: (original.installment_schedule ?? []) as unknown as Json,
-        status: 'active',
-      });
-      if (planError) return { error: `Could not create dancer ${i + 1}'s payment plan.` };
+      const { data: plan, error: planError } = await admin
+        .from('payment_plans')
+        .insert({
+          family_member_id: memberId,
+          plan_type: original.plan_type || 'custom',
+          total_amount: original.total_amount,
+          installment_schedule: (original.installment_schedule ?? []) as unknown as Json,
+          status: 'active',
+        })
+        .select('id')
+        .single();
+      if (planError || !plan) return { error: `Could not create dancer ${i + 1}'s payment plan.` };
+      planId = plan.id;
+    }
+
+    // Carry forward any payments Debbie already logged before the family
+    // confirmed (e.g. an e-transfer received while they were still pending).
+    if (original.payments_received?.length) {
+      await admin.from('payments').insert(
+        original.payments_received.map((p) => ({
+          family_member_id: memberId,
+          payment_plan_id: planId ?? null,
+          amount: p.amount,
+          category: 'tuition',
+          paid_at: new Date(p.date).toISOString(),
+          method: p.method,
+          note: p.note ?? null,
+        })),
+      );
     }
 
     const addon = original.addon ? getAddon(original.addon) : undefined;

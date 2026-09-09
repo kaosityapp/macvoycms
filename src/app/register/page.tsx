@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getCurrentSeason, getSeasonClassesGrouped } from '@/lib/season';
+import { getCurrentSeason, getSeasonClassesGrouped, excludeFromOpenRegistration } from '@/lib/season';
 import { getFamilyAccount } from '@/lib/auth';
 import { RegistrationFlow } from './RegistrationFlow';
 
@@ -19,10 +19,11 @@ export default async function RegisterPage() {
     );
   }
 
-  const [groups, account] = await Promise.all([
+  const [allGroups, account] = await Promise.all([
     getSeasonClassesGrouped(season.id),
     getFamilyAccount(),
   ]);
+  const groups = excludeFromOpenRegistration(allGroups);
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">

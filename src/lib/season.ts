@@ -61,6 +61,18 @@ export async function getRateMap(seasonId: string): Promise<Map<number, number>>
   return new Map((data ?? []).map((r) => [r.duration_minutes, Number(r.price)]));
 }
 
+// Special one-off events (workshops, etc.) live in classes/class_sessions so
+// they schedule and enroll like any other class, but they're invite-only for
+// specific dancers, not open self-registration — keep them out of the public
+// schedule page and the open registration form.
+const OPEN_REGISTRATION_EXCLUDE = new Set(['Oireachtas Workshop']);
+
+export function excludeFromOpenRegistration(groups: LocationClassGroup[]): LocationClassGroup[] {
+  return groups
+    .map((g) => ({ ...g, classes: g.classes.filter((c) => !OPEN_REGISTRATION_EXCLUDE.has(c.name)) }))
+    .filter((g) => g.classes.length > 0);
+}
+
 /** Classes for a season, grouped by location and ordered by day/time. */
 export async function getSeasonClassesGrouped(seasonId: string): Promise<LocationClassGroup[]> {
   const supabase = await createClient();
