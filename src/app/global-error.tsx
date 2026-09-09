@@ -31,7 +31,7 @@ export default function GlobalError({
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Something went wrong</h1>
           <p style={{ marginTop: '0.75rem', color: '#555' }}>
             Please refresh the page. If the problem continues, contact us at
-            info@macvoyirishdance.com.
+            macvoyirishdance@rogers.com.
           </p>
         </div>
       </body>

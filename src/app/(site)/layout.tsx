@@ -24,8 +24,8 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
             <div>
               <div className="font-semibold text-brand-ink">MacVoy School of Irish Dance</div>
               <p className="mt-1">Mississauga &amp; Pickering, Ontario</p>
-              <a href="mailto:info@macvoyirishdance.com" className="text-brand-pink hover:underline">
-                info@macvoyirishdance.com
+              <a href="mailto:macvoyirishdance@rogers.com" className="text-brand-pink hover:underline">
+                macvoyirishdance@rogers.com
               </a>
             </div>
             <div className="flex items-center gap-4">
