@@ -78,6 +78,15 @@ export async function initializeCheckout(input: InitCheckoutInput): Promise<Init
       amount: input.amount,
       currency: input.currency ?? 'CAD',
       paymentType: 'purchase',
+      // Fee Saver (customer pays the ~3% card processing fee) is NOT applied
+      // just because it's enabled at the account level — each checkout
+      // session must explicitly request it via these two fields, or Helcim
+      // silently charges the flat amount with the school absorbing the fee.
+      // paymentMethod 'cc-ach' is required alongside it (gives the customer
+      // a fee-free bank-payment alternative to card). Confirmed against
+      // Helcim's dev docs: devdocs.helcim.com/docs/processing-with-fee-saver-through-helcimpayjs
+      hasConvenienceFee: 1,
+      paymentMethod: 'cc-ach',
       // invoiceRequest CREATES a new invoice under our reference (the
       // top-level invoiceNumber field instead tries to LINK an existing
       // invoice and 400s with "Invalid Invoice Number" since none exists).
