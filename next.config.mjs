@@ -9,6 +9,22 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.supabase.co' },
     ],
   },
+  async rewrites() {
+    return [
+      // Helcim's webhook Deliver URL field rejects ANY url with a path
+      // segment (even a single short one) with a generic "urlformat" error —
+      // it only accepts a bare host. So the Deliver URL is the bare
+      // subdomain hooks.macvoyirishdance.com, rewritten here to the real
+      // handler. A rewrite (not a redirect) is transparent — method/body/
+      // headers reach the handler unchanged, so signature verification
+      // still sees the exact same request Helcim sent.
+      {
+        source: '/',
+        has: [{ type: 'host', value: 'hooks.macvoyirishdance.com' }],
+        destination: '/api/webhooks/helcim',
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {
