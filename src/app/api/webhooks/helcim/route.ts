@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyWebhookSignature, getCardTransaction } from '@/lib/integrations/helcim';
+import { dancerNameFor } from '@/lib/billing/autoCharge';
+import { sendAdminAlert } from '@/lib/integrations/adminAlert';
 
 /**
  * Helcim webhook — the single source of truth for recording a completed
@@ -102,15 +104,27 @@ export async function POST(request: NextRequest) {
 
     // Capture the stored card and flip auto_charge on only if the family
     // explicitly checked "save card for automatic payments" on this checkout.
-    if (txn.cardToken && intent.payment_plan_id && intent.save_card) {
-      await admin
-        .from('payment_plans')
-        .update({
-          stored_card_token: txn.cardToken,
-          stored_customer_code: txn.customerCode ?? null,
-          auto_charge: true,
-        })
-        .eq('id', intent.payment_plan_id);
+    if (intent.save_card && intent.payment_plan_id) {
+      if (txn.cardToken) {
+        await admin
+          .from('payment_plans')
+          .update({
+            stored_card_token: txn.cardToken,
+            stored_customer_code: txn.customerCode ?? null,
+            auto_charge: true,
+          })
+          .eq('id', intent.payment_plan_id);
+      } else {
+        // They checked "save for automatic payments" but paid via ACH bank
+        // payment instead of card — there's no card token to store, so
+        // recurring can't be set up. Silently doing nothing here would leave
+        // the family believing they opted in when nothing actually happened.
+        const dancerName = await dancerNameFor(admin, intent.family_member_id);
+        await sendAdminAlert(`Auto-charge NOT set up for ${dancerName} — paid via bank payment`, [
+          `${dancerName}'s family checked "save for automatic payments" but paid via ACH bank transfer instead of credit card.`,
+          `Automatic payments only work with a saved credit card, so nothing was saved — they'll need to use Pay Now each time, or pay by card and check the box again to enable it.`,
+        ]);
+      }
     }
   } else {
     await admin

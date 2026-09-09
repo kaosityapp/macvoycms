@@ -118,7 +118,7 @@ export function PayNowButton({
             onChange={(e) => setSaveCard(e.target.checked)}
             className="h-3.5 w-3.5 accent-brand-pink"
           />
-          Save card for automatic payments
+          Save card for automatic payments (credit card only, not bank payment)
         </label>
         <button
           type="button"

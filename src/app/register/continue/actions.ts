@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { POLICIES } from '@/lib/consents/policies';
 import { getAddon } from '@/lib/constants/addons';
+import { isLoopsConfigured, sendTransactional } from '@/lib/integrations/loops';
 import type { Json } from '@/lib/types/database';
 
 export interface CompleteRegistrationState {
@@ -205,6 +206,21 @@ export async function completePendingRegistration(
     .from('pending_registrations')
     .update({ status: 'completed', completed_at: new Date().toISOString() })
     .eq('id', pending.id);
+
+  if (isLoopsConfigured() && user.email) {
+    try {
+      const dancerNames = originalDancers
+        .map((_, i) => `${s(formData, `firstName_${i}`)} ${s(formData, `lastName_${i}`)}`)
+        .join(', ');
+      await sendTransactional({
+        to: user.email,
+        transactionalId: 'registration_confirmation',
+        dataVariables: { dancer: dancerNames, total: originalDancers.reduce((sum, d) => sum + (d.total_amount || 0), 0) },
+      });
+    } catch {
+      // Non-fatal: registration succeeds even if the email fails.
+    }
+  }
 
   redirect('/dashboard?registered=1');
 }
