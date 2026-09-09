@@ -10,20 +10,27 @@ const nextConfig = {
     ],
   },
   async rewrites() {
-    return [
-      // Helcim's webhook Deliver URL field rejects ANY url with a path
-      // segment (even a single short one) with a generic "urlformat" error —
-      // it only accepts a bare host. So the Deliver URL is the bare
-      // subdomain hooks.macvoyirishdance.com, rewritten here to the real
-      // handler. A rewrite (not a redirect) is transparent — method/body/
-      // headers reach the handler unchanged, so signature verification
-      // still sees the exact same request Helcim sent.
-      {
-        source: '/',
-        has: [{ type: 'host', value: 'hooks.macvoyirishdance.com' }],
-        destination: '/api/webhooks/helcim',
-      },
-    ];
+    return {
+      // Must run in beforeFiles: '/' already resolves to the real homepage
+      // route, so a plain (afterFiles) rewrite never gets a chance to
+      // intercept it — Next.js serves the matching page first.
+      beforeFiles: [
+        // Helcim's webhook Deliver URL field rejects ANY url with a path
+        // segment (even a single short one) with a generic "urlformat"
+        // error — it only accepts a bare host. So the Deliver URL is the
+        // bare subdomain hooks.macvoyirishdance.com, rewritten here to the
+        // real handler. A rewrite (not a redirect) is transparent —
+        // method/body/headers reach the handler unchanged, so signature
+        // verification still sees the exact same request Helcim sent.
+        {
+          source: '/',
+          has: [{ type: 'host', value: 'hooks.macvoyirishdance.com' }],
+          destination: '/api/webhooks/helcim',
+        },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
   },
 };
 
