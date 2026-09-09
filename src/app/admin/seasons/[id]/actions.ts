@@ -109,7 +109,7 @@ const DAY_INDEX: Record<string, number> = {
   sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
 };
 const DAY_NAME = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const LEVELS = new Set(['beginner', 'advanced', 'competitive', 'adult', 'ceili']);
+const LEVELS = new Set(['beginner', 'advanced', 'competitive', 'adult', 'ceili', 'championship']);
 const SHOES = new Set(['soft', 'hard', 'soft-hard', 'n/a']);
 
 /** Minimal CSV parser (handles quoted fields and embedded commas/quotes). */

@@ -5,7 +5,7 @@ import { updateClass, type ActionState } from './actions';
 import { Field, FormError, FormSuccess, SubmitButton, inputClass } from '@/components/ui';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const LEVELS = ['beginner', 'advanced', 'competitive', 'adult', 'ceili'];
+const LEVELS = ['beginner', 'advanced', 'competitive', 'adult', 'ceili', 'championship'];
 const SHOES = ['soft', 'hard', 'soft-hard', 'n/a'];
 
 interface ClassData {
