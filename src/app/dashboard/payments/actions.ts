@@ -11,6 +11,7 @@ import {
   lookupCustomerIdByCode,
   getAchTransaction,
 } from '@/lib/integrations/helcim';
+import { sendAdminAlert } from '@/lib/integrations/adminAlert';
 
 export interface StartPaymentResult {
   error?: string;
@@ -200,20 +201,29 @@ export async function confirmPaymentClientSide(
   return { ok: true };
 }
 
-/** Parent opts a plan in/out of automatic recurring charges (their own dancer only). */
-export async function setAutoCharge(planId: string, enabled: boolean): Promise<void> {
+/**
+ * A family can't turn off automatic payments themselves — this only sends
+ * Debbie a note so she can follow up and stop billing from the admin side
+ * (see admin/families/actions.ts stopBilling). Keeps her in the loop on why
+ * a family wants out, rather than it silently switching off.
+ */
+export async function requestAutoChargeCancellation(planId: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
-  // Ownership check via the RLS-scoped client ("own plans read" policy) —
-  // returns null for a plan that isn't the caller's own. The actual update
-  // then uses the admin client: payment_plans only has an admin ALL policy,
-  // no owner UPDATE policy, so the RLS-scoped client would silently update
-  // 0 rows here — the "Turn off" button would appear to work while
-  // auto_charge stayed true in the database and the family kept getting
-  // charged.
-  const { data: plan } = await supabase.from('payment_plans').select('id').eq('id', planId).maybeSingle();
-  if (!plan) return;
+  const { data: plan } = await supabase
+    .from('payment_plans')
+    .select('id, family_member_id, family_members(first_name, last_name, family_accounts(parent1_name, parent1_email))')
+    .eq('id', planId)
+    .maybeSingle();
+  if (!plan) return { ok: false, error: 'Plan not found.' };
 
-  const admin = createAdminClient();
-  await admin.from('payment_plans').update({ auto_charge: enabled }).eq('id', planId);
-  revalidatePath('/dashboard/payments');
+  const member = (plan as any).family_members;
+  const dancerName = member ? `${member.first_name} ${member.last_name}` : 'a dancer';
+  const family = member?.family_accounts;
+
+  await sendAdminAlert(`Cancellation requested — automatic payments for ${dancerName}`, [
+    `${family?.parent1_name ?? 'A family'} (${family?.parent1_email ?? 'no email on file'}) asked to stop automatic payments for ${dancerName}.`,
+    `Turn off auto-charge or stop billing from their dancer profile in the admin.`,
+  ]);
+
+  return { ok: true };
 }

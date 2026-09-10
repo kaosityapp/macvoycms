@@ -55,7 +55,10 @@ export default async function PaymentsPage() {
             {planBreakdowns.map((p) => (
               <li key={p.planId} className="space-y-2 px-5 py-4">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium text-brand-ink">{p.memberName}</span>
+                  <div>
+                    <span className="font-medium text-brand-ink">{p.memberName}</span>
+                    <span className="ml-2 text-sm text-brand-ink/50">September to December 2026</span>
+                  </div>
                   <span className="text-sm text-brand-ink/60">
                     {PLAN_TYPE_LABEL[p.planType] ?? 'Custom plan'}
                   </span>
@@ -119,8 +122,11 @@ export default async function PaymentsPage() {
           </p>
         ) : (
           <ul className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
-            {upcoming.map((item, i) => (
-              <li key={i} className="flex items-center justify-between gap-4 px-5 py-4">
+            {upcoming.map((item) => (
+              <li
+                key={`${item.planId}-${item.installmentIndex}`}
+                className="flex items-center justify-between gap-4 px-5 py-4"
+              >
                 <div>
                   <div className="font-medium text-brand-ink">{money(item.amount)}</div>
                   <div className="text-sm text-brand-ink/60">
