@@ -3,7 +3,11 @@ import { getCurrentSeason, getSeasonClassesGrouped, excludeFromOpenRegistration 
 import { formatTime } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Classes — MacVoy School of Irish Dance' };
+export const metadata = {
+  title: 'Classes',
+  description:
+    'Irish dance class schedule for Mississauga and Pickering — soft shoe, hard shoe, adult, and competitive levels for ages 3 and up.',
+};
 
 function ageLabel(min: number | null, max: number | null): string {
   if (min == null && max == null) return 'All ages';
@@ -43,7 +47,7 @@ export default async function ClassesPage() {
             MacVoy School of Irish Dance offers competitive and recreational classes for boys and
             girls ages 3+ and adults.
           </p>
-          {season && <p className="mt-1 text-sm text-brand-ink/50">{season.name} season schedule</p>}
+          {season && <p className="mt-1 text-sm text-brand-ink/60">{season.name} season schedule</p>}
         </div>
         <Link
           href="/register"

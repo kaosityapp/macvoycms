@@ -1,11 +1,14 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import { updatePassword, type AuthState } from '../actions';
 import { Field, FormError, SubmitButton, inputClass } from '@/components/ui';
 
 export default function ResetPasswordPage() {
   const [state, action] = useActionState<AuthState, FormData>(updatePassword, {});
+  useEffect(() => {
+    document.title = 'Set your password — MacVoy School of Irish Dance';
+  }, []);
 
   return (
     <div className="space-y-6">

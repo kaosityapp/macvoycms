@@ -63,7 +63,7 @@ export function RegistrationFlow({
           link to that address — click it to confirm your details, set a password, and finish
           registering.
         </p>
-        <p className="mt-4 text-sm text-brand-ink/50">
+        <p className="mt-4 text-sm text-brand-ink/60">
           Wrong email or no pre-filled registration expected?{' '}
           <button
             type="button"

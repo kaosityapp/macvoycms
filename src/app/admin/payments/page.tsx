@@ -33,8 +33,18 @@ export default async function AdminPaymentsPage() {
     if (!plan) continue;
     const name = `${m.first_name} ${m.last_name}`;
     const schedule = Array.isArray(plan.installment_schedule) ? plan.installment_schedule : [];
+    // Net against what's actually paid — otherwise an installment already
+    // covered by a lump-sum or manual payment still counts toward "upcoming",
+    // overstating the total Debbie sees as still owed.
+    const paidTotal = (m.payments ?? [])
+      .filter((p: any) => p.paid_at)
+      .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+    let cumulative = 0;
     for (const inst of schedule) {
-      if (inst?.date && inst.date >= today) upcoming.push({ name, date: inst.date, amount: Number(inst.amount) });
+      cumulative += Number(inst?.amount ?? 0);
+      if (inst?.date && inst.date >= today && paidTotal < cumulative - 0.005) {
+        upcoming.push({ name, date: inst.date, amount: Number(inst.amount) });
+      }
     }
     const s = summarizePayments(plan, m.payments ?? [], today, billingActive);
     if (s.status === 'overdue') late.push({ name, amount: s.total - s.paid, date: s.nextPaymentDate ?? today });

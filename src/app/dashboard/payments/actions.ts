@@ -3,6 +3,7 @@
 import { randomBytes } from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import {
   initializeCheckout,
   validateClientHash,
@@ -107,12 +108,23 @@ export async function confirmPaymentClientSide(
   eventMessageJson: string,
 ): Promise<ConfirmResult> {
   const supabase = await createClient();
+  // Ownership check: this SELECT is RLS-scoped ("own intents read" —
+  // owns_family_member() or is_admin()), so a non-owner gets null here and
+  // the function bails before any write. The writes below then use the
+  // admin client deliberately — payment_intents/payment_plans have no
+  // owner UPDATE policy (only owner INSERT / admin ALL), so the
+  // RLS-scoped client would silently no-op every update in this function
+  // (0 rows affected, no error) despite ownership already being proven by
+  // this read. That silent-no-op previously meant a bank payment could be
+  // withdrawn via Helcim but never recorded as settling/paid, and "turn off
+  // auto-charge" could appear to work in the UI while doing nothing in the DB.
   const { data: intent } = await supabase
     .from('payment_intents')
     .select('id, secret_token, status, payment_plan_id, save_card')
     .eq('reference', reference)
     .maybeSingle();
   if (!intent) return { ok: false, error: 'Unknown payment.' };
+  const admin = createAdminClient();
 
   let parsed: { data: any; hash: string } | null = null;
   let verified = false;
@@ -151,7 +163,7 @@ export async function confirmPaymentClientSide(
         console.error('Resolving ACH customer/bank IDs failed:', err);
       }
 
-      await supabase
+      await admin
         .from('payment_intents')
         .update({
           status: 'settling',
@@ -166,7 +178,7 @@ export async function confirmPaymentClientSide(
       // "Save for automatic payments" — store recurring capability now; it
       // doesn't depend on whether THIS specific withdrawal ends up settling.
       if (intent.save_card && intent.payment_plan_id && bankAccountId && bankCustomerId) {
-        await supabase
+        await admin
           .from('payment_plans')
           .update({
             stored_bank_customer_id: bankCustomerId,
@@ -181,7 +193,7 @@ export async function confirmPaymentClientSide(
   }
 
   if (intent.status === 'pending') {
-    await supabase.from('payment_intents').update({ status: 'client_confirmed' }).eq('id', intent.id);
+    await admin.from('payment_intents').update({ status: 'client_confirmed' }).eq('id', intent.id);
   }
 
   revalidatePath('/dashboard/payments');
@@ -191,6 +203,17 @@ export async function confirmPaymentClientSide(
 /** Parent opts a plan in/out of automatic recurring charges (their own dancer only). */
 export async function setAutoCharge(planId: string, enabled: boolean): Promise<void> {
   const supabase = await createClient();
-  await supabase.from('payment_plans').update({ auto_charge: enabled }).eq('id', planId);
+  // Ownership check via the RLS-scoped client ("own plans read" policy) —
+  // returns null for a plan that isn't the caller's own. The actual update
+  // then uses the admin client: payment_plans only has an admin ALL policy,
+  // no owner UPDATE policy, so the RLS-scoped client would silently update
+  // 0 rows here — the "Turn off" button would appear to work while
+  // auto_charge stayed true in the database and the family kept getting
+  // charged.
+  const { data: plan } = await supabase.from('payment_plans').select('id').eq('id', planId).maybeSingle();
+  if (!plan) return;
+
+  const admin = createAdminClient();
+  await admin.from('payment_plans').update({ auto_charge: enabled }).eq('id', planId);
   revalidatePath('/dashboard/payments');
 }

@@ -1,9 +1,15 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { requireUser, getFamilyAccount } from '@/lib/auth';
 import { signOut } from '@/app/(auth)/actions';
 import { DashboardNav } from '@/components/DashboardNav';
 
 export const dynamic = 'force-dynamic';
+
+// Private, per-family account area — never indexed (same reasoning as admin).
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+};
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   await requireUser();

@@ -24,7 +24,7 @@ export default function GlobalError({
           padding: '2rem',
           textAlign: 'center',
           color: '#1a1a1a',
-          background: '#f9fafb',
+          background: '#fefefe',
         }}
       >
         <div>

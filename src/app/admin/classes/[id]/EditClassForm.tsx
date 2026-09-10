@@ -67,7 +67,7 @@ export function EditClassForm({
             ))}
           </select>
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Start" htmlFor="start_time" required>
             <input id="start_time" name="start_time" type="time" required defaultValue={t(data.start_time)} className={inputClass} />
           </Field>
@@ -93,7 +93,7 @@ export function EditClassForm({
             ))}
           </select>
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Min age" htmlFor="age_min">
             <input id="age_min" name="age_min" type="number" defaultValue={data.age_min ?? ''} className={inputClass} />
           </Field>

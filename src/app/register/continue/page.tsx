@@ -6,6 +6,13 @@ import { ContinuePrefilledForm } from './ContinuePrefilledForm';
 
 export const dynamic = 'force-dynamic';
 
+// Private, user-specific confirmation step reached only via a one-time
+// email link — no SEO value, shouldn't be indexable.
+export const metadata = {
+  title: 'Confirm your registration',
+  robots: { index: false, follow: false },
+};
+
 interface DancerPrefill {
   first_name: string;
   last_name: string;

@@ -1,4 +1,8 @@
-export const metadata = { title: 'Locations — MacVoy School of Irish Dance' };
+export const metadata = {
+  title: 'Locations',
+  description:
+    'MacVoy School of Irish Dance holds classes at The Irish Club of Mississauga and The Dance Experience in Pickering, Ontario.',
+};
 
 const LOCATIONS = [
   {

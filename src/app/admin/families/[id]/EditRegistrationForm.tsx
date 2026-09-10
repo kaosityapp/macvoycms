@@ -41,7 +41,7 @@ export function EditRegistrationForm({ memberId, familyId, dancer, family }: Pro
       <div className="grid gap-6 sm:grid-cols-2">
         <div className="space-y-3">
           <h3 className="font-semibold text-brand-ink">Dancer</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Field label="First name" htmlFor="first_name" required>
               <input id="first_name" name="first_name" required defaultValue={dancer.first_name} className={inputClass} />
             </Field>
@@ -49,7 +49,7 @@ export function EditRegistrationForm({ memberId, familyId, dancer, family }: Pro
               <input id="last_name" name="last_name" required defaultValue={dancer.last_name} className={inputClass} />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Field label="Birthday" htmlFor="birthday">
               <input id="birthday" name="birthday" type="date" defaultValue={dancer.birthday ?? ''} className={inputClass} />
             </Field>
@@ -69,7 +69,7 @@ export function EditRegistrationForm({ memberId, familyId, dancer, family }: Pro
               className={inputClass}
             />
           </Field>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <Field label="Emergency name" htmlFor="emergency_name">
               <input
                 id="emergency_name"
@@ -99,7 +99,7 @@ export function EditRegistrationForm({ memberId, familyId, dancer, family }: Pro
 
         <div className="space-y-3">
           <h3 className="font-semibold text-brand-ink">Account holder</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Field label="Parent 1 name" htmlFor="parent1_name" required>
               <input
                 id="parent1_name"
@@ -121,7 +121,7 @@ export function EditRegistrationForm({ memberId, familyId, dancer, family }: Pro
           <Field label="Login email" htmlFor="parent1_email_display" hint="Change via password reset / contact Supabase directly — not editable here.">
             <input id="parent1_email_display" value={family?.parent1_email ?? ''} disabled className={`${inputClass} bg-brand-ink/5`} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Field label="Parent 2 name" htmlFor="parent2_name">
               <input
                 id="parent2_name"

@@ -5,6 +5,12 @@ import { RegistrationFlow } from './RegistrationFlow';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = {
+  title: 'Register',
+  description:
+    'Register for the 2026–2027 Irish dance season at MacVoy School of Irish Dance — Mississauga and Pickering, Ontario. New students welcome year-round.',
+};
+
 export default async function RegisterPage() {
   const season = await getCurrentSeason();
 

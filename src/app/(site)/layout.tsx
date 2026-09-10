@@ -10,7 +10,6 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/images/logo.png" alt="MacVoy School of Irish Dance" className="h-14 w-auto" />
-            <span className="sr-only">MacVoy School of Irish Dance</span>
           </Link>
           <SiteNav />
         </div>
@@ -47,12 +46,9 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               >
                 <InstagramIcon className="h-6 w-6" />
               </a>
-              <Link href="/dashboard" className="hover:text-brand-pink">
-                My Account
-              </Link>
             </div>
           </div>
-          <p className="mt-6 text-xs text-brand-ink/50">
+          <p className="mt-6 text-xs text-brand-ink/60">
             © {new Date().getFullYear()} MacVoy School of Irish Dance. All rights reserved.
           </p>
         </div>

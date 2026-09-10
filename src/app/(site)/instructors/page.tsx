@@ -1,4 +1,7 @@
-export const metadata = { title: 'Instructors — MacVoy School of Irish Dance' };
+export const metadata = {
+  title: 'Instructors',
+  description: 'Meet the instructors at MacVoy School of Irish Dance.',
+};
 
 export default function InstructorsPage() {
   return (

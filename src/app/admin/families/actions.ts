@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth';
 import { recalcDefaultPlanForMember } from '@/lib/admin/billing';
 import { findDueInstallment, attemptInstallmentCharge } from '@/lib/billing/autoCharge';
 import { todayIso, addDays } from '@/lib/billing/dueDates';
@@ -206,6 +207,14 @@ export async function recordManualPayment(_prev: ActionState, formData: FormData
  * had been switched off after prior failures.
  */
 export async function retryInstallmentNow(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  // Explicit check: this triggers a REAL Helcim charge (chargeStoredCard /
+  // chargeStoredBankAccount) directly, not just a DB write — RLS on
+  // payment_plans/payment_intents doesn't cover that external call. Without
+  // this, a signed-in parent (or anyone who obtains this action's id from
+  // this admin page's public JS bundle) could trigger a real charge attempt
+  // outside the normal Pay Now consent/checkout flow.
+  await requireAdmin();
+
   const memberId = String(formData.get('member_id') ?? '');
   const planId = String(formData.get('plan_id') ?? '');
   if (!memberId || !planId) return { error: 'Missing plan.' };
@@ -237,7 +246,7 @@ export async function retryInstallmentNow(_prev: ActionState, formData: FormData
     .select('id, status')
     .eq('payment_plan_id', plan.id)
     .eq('installment_index', due.index)
-    .in('status', ['pending', 'client_confirmed', 'completed'])
+    .in('status', ['pending', 'client_confirmed', 'settling', 'completed'])
     .maybeSingle();
   if (inFlight) return { error: `That installment is already ${inFlight.status}.` };
 
@@ -257,6 +266,8 @@ export async function retryInstallmentNow(_prev: ActionState, formData: FormData
 
 /** Push one installment's due date out a few days (a family needs a bit more time). */
 export async function pushInstallmentDueDate(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+
   const memberId = String(formData.get('member_id') ?? '');
   const planId = String(formData.get('plan_id') ?? '');
   const installmentIndex = Number(formData.get('installment_index'));
@@ -291,6 +302,14 @@ export async function pushInstallmentDueDate(_prev: ActionState, formData: FormD
 
 /** Send a password-reset email to a family's login. */
 export async function sendPasswordReset(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  // Explicit check: unlike a normal DB write, resetPasswordForEmail() is a
+  // Supabase Auth API call — it isn't covered by any RLS policy, and it
+  // takes an arbitrary email string, not a scoped record id. Without this,
+  // anyone who can invoke this server action (its action id ships in this
+  // admin page's public JS bundle regardless of who can render the page)
+  // could repeatedly email-bomb any address with reset links.
+  await requireAdmin();
+
   const email = String(formData.get('email') ?? '').trim();
   if (!email) return { error: 'Missing email.' };
 

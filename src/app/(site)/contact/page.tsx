@@ -1,6 +1,9 @@
 import { ContactForm } from './ContactForm';
 
-export const metadata = { title: 'Contact — MacVoy School of Irish Dance' };
+export const metadata = {
+  title: 'Contact',
+  description: 'Get in touch with MacVoy School of Irish Dance — email, social media, or the contact form.',
+};
 
 export default function ContactPage() {
   return (

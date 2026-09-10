@@ -46,7 +46,7 @@ export default function WelcomePage() {
             “Great dancers are not great because of their technique, they are great because of their
             passion.”
           </blockquote>
-          <p className="mt-4 text-sm font-semibold uppercase tracking-widest text-brand-ink/50">
+          <p className="mt-4 text-sm font-semibold uppercase tracking-widest text-brand-ink/60">
             — Martha Graham
           </p>
         </div>

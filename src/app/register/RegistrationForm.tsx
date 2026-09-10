@@ -282,7 +282,7 @@ export function RegistrationForm({
             </label>
           ))}
         </div>
-        <p className="text-xs text-brand-ink/50">Add-on prices to be confirmed.</p>
+        <p className="text-xs text-brand-ink/60">Add-on prices to be confirmed.</p>
       </section>
 
       {/* ---- Payment plan ---- */}
@@ -323,7 +323,7 @@ export function RegistrationForm({
             </label>
           </div>
         </div>
-        <p className="text-xs text-brand-ink/50">
+        <p className="text-xs text-brand-ink/60">
           This is an estimate and your preference — the school confirms your final price and sets
           up your payment plan after you submit, then emails you to finalize payment.
         </p>

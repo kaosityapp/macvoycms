@@ -1,9 +1,18 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/auth';
 import { signOut } from '@/app/(auth)/actions';
 import { AdminNav } from '@/components/AdminNav';
 
 export const dynamic = 'force-dynamic';
+
+// Private, auth-gated area — never indexed. Belt-and-suspenders with
+// robots.txt (src/app/robots.ts), which disallows crawling /admin entirely;
+// this tag additionally stops indexing even if a page were somehow crawled
+// or linked to directly.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+};
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();

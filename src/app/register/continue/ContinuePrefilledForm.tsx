@@ -339,7 +339,7 @@ function DancerFields({
             ))}
           </ul>
         )}
-        <p className="mt-1 text-xs text-brand-ink/50">
+        <p className="mt-1 text-xs text-brand-ink/60">
           Need to change classes? Contact the school — your rate may change.
         </p>
       </div>
@@ -366,7 +366,7 @@ function DancerFields({
         ) : (
           <p className="text-sm text-brand-ink/60">No plan set yet — the school will follow up.</p>
         )}
-        <p className="mt-1 text-xs text-brand-ink/50">
+        <p className="mt-1 text-xs text-brand-ink/60">
           Payment amount isn&apos;t editable here — contact the school if this needs to change.
         </p>
       </div>

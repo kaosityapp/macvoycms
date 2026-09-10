@@ -1,12 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import { requestPasswordReset, type AuthState } from '../actions';
 import { Field, FormError, FormSuccess, SubmitButton, inputClass } from '@/components/ui';
 
 export default function ForgotPasswordPage() {
   const [state, action] = useActionState<AuthState, FormData>(requestPasswordReset, {});
+  useEffect(() => {
+    document.title = 'Reset your password — MacVoy School of Irish Dance';
+  }, []);
 
   return (
     <div className="space-y-6">

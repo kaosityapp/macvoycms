@@ -1,4 +1,7 @@
-export const metadata = { title: 'Links — MacVoy School of Irish Dance' };
+export const metadata = {
+  title: 'Links',
+  description: 'Irish dance governing bodies and teacher associations affiliated with MacVoy School of Irish Dance.',
+};
 
 const LINKS = [
   { label: 'An Coimisiún Rince Le Gaelacha', href: 'http://clrg.ie/', logo: '/images/logos/clrg.jpg' },

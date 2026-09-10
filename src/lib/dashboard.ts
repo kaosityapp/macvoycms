@@ -139,7 +139,9 @@ export async function getUpcomingInstallments(
   const supabase = await createClient();
   const { data } = await supabase
     .from('family_members')
-    .select('id, first_name, last_name, payment_plans(id, plan_type, status, installment_schedule)')
+    .select(
+      'id, first_name, last_name, payment_plans(id, plan_type, status, installment_schedule, payments(amount, paid_at))',
+    )
     .eq('family_account_id', accountId);
 
   const out: Installment[] = [];
@@ -147,8 +149,19 @@ export async function getUpcomingInstallments(
     for (const plan of m.payment_plans ?? []) {
       if (plan.status !== 'active') continue;
       const schedule = Array.isArray(plan.installment_schedule) ? plan.installment_schedule : [];
+      // Net against what's actually been paid (Helcim, ACH, or a manual
+      // entry) — otherwise an installment already covered by a lump-sum or
+      // manual payment still shows a live "Pay Now" button, risking a
+      // duplicate payment.
+      const paidTotal = ((plan.payments ?? []) as any[])
+        .filter((p) => p.paid_at)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+
+      let cumulative = 0;
       schedule.forEach((item: any, idx: number) => {
+        cumulative += Number(item?.amount ?? 0);
         if (!item?.date || item.date < todayIso) return;
+        if (paidTotal >= cumulative - 0.005) return; // already covered
         out.push({
           memberId: m.id,
           memberName: `${m.first_name} ${m.last_name}`,

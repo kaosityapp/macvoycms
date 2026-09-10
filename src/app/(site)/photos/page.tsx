@@ -1,17 +1,20 @@
 import { InstagramEmbed } from '@/components/InstagramEmbed';
 import { InstagramIcon } from '@/components/SocialIcons';
 
-export const metadata = { title: 'Photos — MacVoy School of Irish Dance' };
+export const metadata = {
+  title: 'Photos',
+  description: 'Photos from MacVoy School of Irish Dance classes, performances, and competitions.',
+};
 
 const PHOTOS = [
-  'group.jpg',
-  '6969714.jpg',
-  '9856658.jpg',
-  'ajax-recital.jpg',
-  '1989555.jpg',
-  '3556843.jpg',
-  '4943916.jpg',
-  '5103469.png',
+  { file: 'group.jpg', alt: 'Group of MacVoy dancers on stage wearing medals after a competition.' },
+  { file: '6969714.jpg', alt: "Close-up of dancers' feet in hard shoes and poodle socks, mid-jump." },
+  { file: '9856658.jpg', alt: "Dancers' feet in soft and hard shoes arranged in a circle." },
+  { file: 'ajax-recital.jpg', alt: 'MacVoy dancers and instructors on stage with medals at a recital.' },
+  { file: '1989555.jpg', alt: 'Motivational Irish dance quote graphic.' },
+  { file: '3556843.jpg', alt: 'A pair of black Irish hard shoes on a white background.' },
+  { file: '4943916.jpg', alt: 'Historical photo of MacVoy dancers in embroidered Celtic-pattern costumes.' },
+  { file: '5103469.png', alt: 'MacVoy School of Irish Dance logo.' },
 ];
 
 // Recent public posts from @macvoyschoolofirishdance, embedded via
@@ -33,12 +36,12 @@ export default function PhotosPage() {
       <p className="mt-3 text-brand-ink/70">Moments from classes, recitals, and competitions.</p>
 
       <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {PHOTOS.map((file) => (
+        {PHOTOS.map((p) => (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            key={file}
-            src={`/images/gallery/${file}`}
-            alt="MacVoy School of Irish Dance"
+            key={p.file}
+            src={`/images/gallery/${p.file}`}
+            alt={p.alt}
             loading="lazy"
             className="aspect-square w-full rounded-lg object-cover shadow-sm"
           />

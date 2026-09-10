@@ -1,12 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import { login, type AuthState } from '../actions';
 import { Field, FormError, SubmitButton, inputClass } from '@/components/ui';
 
 export default function LoginPage() {
   const [state, action] = useActionState<AuthState, FormData>(login, {});
+  useEffect(() => {
+    document.title = 'Log in — MacVoy School of Irish Dance';
+  }, []);
 
   return (
     <div className="space-y-6">
