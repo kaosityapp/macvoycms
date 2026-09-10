@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { formatTimestamp } from '@/lib/format';
+import { deleteAnnouncement } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,20 +38,21 @@ export default async function AdminAnnouncementsPage() {
               ? `Emailed ${a.loops_message_id.slice('direct:'.length)}`
               : 'In-app only';
           return (
-            <li key={a.id}>
-              <Link
-                href={`/admin/announcements/${a.id}`}
-                className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-brand-pink/5"
-              >
-                <div>
-                  <div className="font-medium text-brand-ink">{a.subject}</div>
-                  <div className="text-sm text-brand-ink/60">
-                    {AUDIENCE_LABEL[a.audience_type] ?? a.audience_type}
-                    {a.sent_at ? ` · ${formatTimestamp(a.sent_at)}` : ' · draft'}
-                  </div>
+            <li key={a.id} className="flex items-center gap-4 px-5 py-4 hover:bg-brand-pink/5">
+              <Link href={`/admin/announcements/${a.id}`} className="min-w-0 flex-1">
+                <div className="font-medium text-brand-ink">{a.subject}</div>
+                <div className="text-sm text-brand-ink/60">
+                  {AUDIENCE_LABEL[a.audience_type] ?? a.audience_type}
+                  {a.sent_at ? ` · ${formatTimestamp(a.sent_at)}` : ' · draft'}
                 </div>
-                <div className="whitespace-nowrap text-sm text-brand-ink/50">{deliveryLabel}</div>
               </Link>
+              <span className="whitespace-nowrap text-sm text-brand-ink/50">{deliveryLabel}</span>
+              <form action={deleteAnnouncement}>
+                <input type="hidden" name="id" value={a.id} />
+                <button type="submit" className="text-sm text-red-600 hover:underline">
+                  Delete
+                </button>
+              </form>
             </li>
           );
         })}

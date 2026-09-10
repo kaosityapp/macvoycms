@@ -34,6 +34,16 @@ export async function updateAnnouncement(_prev: ActionState, formData: FormData)
   return { success: 'Saved.' };
 }
 
+/** Permanently delete an announcement (removes it from parents' portals too). */
+export async function deleteAnnouncement(formData: FormData): Promise<void> {
+  const id = String(formData.get('id') ?? '');
+  if (!id) return;
+  const supabase = await createClient();
+  await supabase.from('announcements').delete().eq('id', id);
+  revalidatePath('/admin/announcements');
+  redirect('/admin/announcements');
+}
+
 const baseSchema = z.object({
   subject: z.string().min(1, 'Subject is required.'),
   body: z.string().min(1, 'Message body is required.'),

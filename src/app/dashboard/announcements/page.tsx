@@ -33,12 +33,16 @@ export default async function AnnouncementsPage() {
               <li key={a.id}>
                 <Link
                   href={`/dashboard/announcements/${a.id}`}
-                  className="block rounded-lg border border-brand-ink/10 bg-white p-5 transition hover:border-brand-pink/40"
+                  className={`block rounded-lg border p-5 transition ${
+                    unread
+                      ? 'border-amber-300 bg-amber-50 hover:border-amber-400'
+                      : 'border-brand-ink/10 bg-white hover:border-brand-pink/40'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="font-semibold text-brand-ink">{a.subject}</h2>
                     {unread && (
-                      <span className="mt-1 shrink-0 rounded-full bg-brand-pink px-2 py-0.5 text-xs font-semibold text-white">
+                      <span className="mt-1 shrink-0 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-amber-950">
                         New
                       </span>
                     )}

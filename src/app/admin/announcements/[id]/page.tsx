@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { formatTimestamp } from '@/lib/format';
 import { EditAnnouncementForm } from './EditAnnouncementForm';
+import { deleteAnnouncement } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,23 @@ export default async function AnnouncementDetailPage({ params }: { params: Promi
       <p className="text-xs text-brand-ink/50">
         Editing updates the in-app archive parents see. It does not re-send the email.
       </p>
+
+      <details className="rounded-md border border-red-200 p-3">
+        <summary className="cursor-pointer text-sm font-medium text-red-700">Delete this announcement</summary>
+        <form action={deleteAnnouncement} className="mt-3 space-y-2">
+          <input type="hidden" name="id" value={a.id} />
+          <p className="text-xs text-brand-ink/60">
+            Removes it permanently, including from every parent&apos;s portal. Already-sent emails aren&apos;t
+            recalled.
+          </p>
+          <button
+            type="submit"
+            className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
+          >
+            Delete permanently
+          </button>
+        </form>
+      </details>
     </div>
   );
 }
