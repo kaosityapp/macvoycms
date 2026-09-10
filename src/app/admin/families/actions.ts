@@ -196,8 +196,24 @@ export async function recordManualPayment(_prev: ActionState, formData: FormData
   });
   if (error) return { error: 'Could not record the payment.' };
 
+  // Receipt parity with online payments — a manually-recorded e-transfer/
+  // cash/cheque should look no different to the family than a card payment.
+  const { data: dancer } = await supabase
+    .from('family_members')
+    .select('first_name, last_name, family:family_accounts(parent1_email)')
+    .eq('id', memberId)
+    .maybeSingle();
+  const parentEmail = (dancer as any)?.family?.parent1_email;
+  if (parentEmail) {
+    await sendPlainEmail(parentEmail, `Payment received — ${money(amount)} — MacVoy School of Irish Dance`, [
+      `We received your payment of ${money(amount)} for ${dancer?.first_name} ${dancer?.last_name}, paid ${date} via ${method}.`,
+      ...(note ? [`Note: ${note}`] : []),
+      `You can see your full payment history anytime at https://www.macvoyirishdance.com/dashboard/payments`,
+    ]);
+  }
+
   revalidateDancer(memberId);
-  return { success: `${money(amount)} recorded.` };
+  return { success: `${money(amount)} recorded${parentEmail ? ' and receipted' : ''}.` };
 }
 
 /**

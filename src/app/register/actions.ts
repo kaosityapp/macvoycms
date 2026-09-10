@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { POLICIES } from '@/lib/consents/policies';
 import { getAddon } from '@/lib/constants/addons';
-import { sendAdminAlert } from '@/lib/integrations/adminAlert';
+import { sendAdminAlert, sendPlainEmail } from '@/lib/integrations/adminAlert';
 import type { ReferralSource } from '@/lib/types/database';
 
 export interface RegistrationState {
@@ -268,6 +268,12 @@ export async function registerDancer(
     `Classes: ${(classNames ?? []).map((c) => c.name).join(', ') || 'none selected'}`,
     `Requested plan: ${planType === 'quarterly' ? 'Quarterly' : 'Paid in full'}`,
     `Set their price from the admin Dancers list — approving it will email them to finalize payment.`,
+  ]);
+
+  await sendPlainEmail(parentEmail, `Registration received — ${m.firstName} ${m.lastName}`, [
+    `Thanks — we've received ${m.firstName} ${m.lastName}'s registration and it's now waiting on approval.`,
+    `Debbie will review it and set up the payment schedule shortly. You'll get another email as soon as it's approved so you can finalize payment.`,
+    `If you don't hear back within 24 hours, please email macvoyirishdance@rogers.com.`,
   ]);
 
   redirect('/dashboard?registered=1');

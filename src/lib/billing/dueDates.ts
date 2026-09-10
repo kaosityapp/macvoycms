@@ -17,9 +17,25 @@ export function defaultQuarterlyDueDates(fromIso: string): string[] {
   return [0, 3, 6, 9].map((n) => addMonths(fromIso, n));
 }
 
-/** Today as an ISO date string (UTC). */
+/**
+ * Today as an ISO date string in Eastern time (America/Toronto — handles
+ * EST/EDT automatically). The school, its due dates, and its classes are
+ * all in Toronto, so "today" for billing/display purposes must be Toronto's
+ * today, not the server's UTC today — otherwise an installment can look
+ * due, or a waiver can look signed, up to 5 hours before it actually is
+ * locally (Vercel's serverless functions run in UTC).
+ */
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date());
+}
+
+/**
+ * A real timestamp's calendar date in Eastern time — for turning e.g.
+ * `created_at` into "what day did this happen, locally" instead of
+ * `.slice(0, 10)`'s UTC calendar day (same reasoning as todayIso above).
+ */
+export function toEasternDateIso(ts: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date(ts));
 }
 
 /** Add `n` days to an ISO date (YYYY-MM-DD). */

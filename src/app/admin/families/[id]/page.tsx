@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments, type PayStatus } from '@/lib/admin/paymentStatus';
 import { findDueInstallment } from '@/lib/billing/autoCharge';
-import { todayIso } from '@/lib/billing/dueDates';
-import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp } from '@/lib/format';
+import { todayIso, toEasternDateIso } from '@/lib/billing/dueDates';
+import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp, formatTimestampShort } from '@/lib/format';
 import { POLICIES } from '@/lib/consents/policies';
 import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
@@ -230,7 +230,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
       <section className="space-y-5 rounded-lg border border-brand-ink/10 bg-white p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold text-brand-pink">Registration</h2>
-          <span className="text-sm text-brand-ink/50">Registered {formatDateLong(d.created_at?.slice(0, 10) ?? today)}</span>
+          <span className="text-sm text-brand-ink/50">Registered {formatDateLong(d.created_at ? toEasternDateIso(d.created_at) : today)}</span>
         </div>
 
         <EditRegistrationForm
@@ -281,7 +281,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
                 <li key={policy.type} className="flex items-center justify-between">
                   <span className="text-brand-ink/80">{policy.title}</span>
                   <span className={`text-xs ${agreedAt ? 'text-green-700' : 'text-brand-ink/40'}`}>
-                    {agreedAt ? `agreed ${formatDateShort(String(agreedAt).slice(0, 10))}` : 'not agreed'}
+                    {agreedAt ? `agreed ${formatTimestampShort(String(agreedAt))}` : 'not agreed'}
                   </span>
                 </li>
               );

@@ -33,11 +33,21 @@ export function formatDateShort(iso: string): string {
   });
 }
 
-/** ISO timestamp → 'Sep 10, 2026' */
+/** ISO timestamp → 'Sep 10, 2026' (Eastern time — see todayIso in dueDates.ts for why). */
 export function formatTimestamp(ts: string): string {
   return new Date(ts).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'America/Toronto',
+  });
+}
+
+/** ISO timestamp → 'Sep 10' (Eastern time, no year — e.g. "agreed Sep 10"). */
+export function formatTimestampShort(ts: string): string {
+  return new Date(ts).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'America/Toronto',
   });
 }

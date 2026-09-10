@@ -75,6 +75,10 @@ export async function updatePendingRegistration(
       total_amount,
       installment_schedule,
       payments_received: existingDancers[i]?.payments_received ?? undefined,
+      addon: (() => {
+        const a = s(formData, `addon_${i}`);
+        return a && a !== 'none' ? a : undefined;
+      })(),
     });
   }
 

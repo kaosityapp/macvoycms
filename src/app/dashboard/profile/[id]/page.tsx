@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { todayIso } from '@/lib/billing/dueDates';
-import { money, formatDateLong, formatDateShort, formatTime } from '@/lib/format';
+import { todayIso, toEasternDateIso } from '@/lib/billing/dueDates';
+import { money, formatDateLong, formatDateShort, formatTime, formatTimestampShort } from '@/lib/format';
 import { POLICIES } from '@/lib/consents/policies';
 
 export const dynamic = 'force-dynamic';
@@ -110,7 +110,7 @@ export default async function DancerApplicationPage({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold text-brand-pink">Registration</h2>
           <span className="text-xs text-brand-ink/50">
-            Submitted {formatDateLong((d.created_at ?? today).slice(0, 10))} · view only
+            Submitted {formatDateLong(d.created_at ? toEasternDateIso(d.created_at) : today)} · view only
           </span>
         </div>
 
@@ -191,7 +191,7 @@ export default async function DancerApplicationPage({
                 <li key={policy.type} className="flex items-center justify-between">
                   <span className="text-brand-ink/80">{policy.title}</span>
                   <span className={`text-xs ${agreedAt ? 'text-green-700' : 'text-brand-ink/40'}`}>
-                    {agreedAt ? `agreed ${formatDateShort(String(agreedAt).slice(0, 10))}` : 'not agreed'}
+                    {agreedAt ? `agreed ${formatTimestampShort(String(agreedAt))}` : 'not agreed'}
                   </span>
                 </li>
               );

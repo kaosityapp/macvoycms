@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { todayIso } from '@/lib/billing/dueDates';
 import type { Database } from '@/lib/types/database';
 
 type Season = Database['public']['Tables']['seasons']['Row'];
@@ -28,7 +29,7 @@ export function durationMinutes(start: string, end: string): number {
  */
 export async function getCurrentSeason(): Promise<Season | null> {
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
 
   const { data: active } = await supabase
     .from('seasons')

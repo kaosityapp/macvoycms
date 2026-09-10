@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments } from '@/lib/admin/paymentStatus';
-import { todayIso, addDays } from '@/lib/billing/dueDates';
+import { todayIso, addDays, toEasternDateIso } from '@/lib/billing/dueDates';
 import { money, formatDateShort, formatDateLong, formatTime } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -63,7 +63,7 @@ export default async function AdminOverviewPage() {
   const newRegs = ((newRegsRes.data ?? []) as any[]).map((m) => ({
     id: m.id,
     name: `${m.first_name} ${m.last_name}`,
-    date: m.created_at?.slice(0, 10) ?? today,
+    date: m.created_at ? toEasternDateIso(m.created_at) : today,
     classes: (m.enrollments ?? [])
       .filter((e: any) => e.status === 'active' && e.class)
       .map((e: any) => e.class.name),

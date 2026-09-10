@@ -1,4 +1,5 @@
 import type { AdminClient } from './autoCharge';
+import { todayIso } from './dueDates';
 import { sendPlainEmail } from '@/lib/integrations/adminAlert';
 import { money, formatDateLong } from '@/lib/format';
 
@@ -18,7 +19,7 @@ export async function sendPaymentReceipt(
   if (!parentEmail) return;
 
   await sendPlainEmail(parentEmail, `Payment received — ${money(amount)} — MacVoy School of Irish Dance`, [
-    `We received your payment of ${money(amount)} for ${dancer?.first_name} ${dancer?.last_name}, paid ${formatDateLong(new Date().toISOString().slice(0, 10))}.`,
+    `We received your payment of ${money(amount)} for ${dancer?.first_name} ${dancer?.last_name}, paid ${formatDateLong(todayIso())}.`,
     `Reference: ${transactionId}`,
     `You can see your full payment history anytime at https://www.macvoyirishdance.com/dashboard/payments`,
   ]);

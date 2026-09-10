@@ -11,6 +11,7 @@ import {
 import { Field, FormError, FormSuccess, SubmitButton, inputClass } from '@/components/ui';
 import { formatTime, formatDateShort, money } from '@/lib/format';
 import { todayIso } from '@/lib/billing/dueDates';
+import { ADDON_OPTIONS } from '@/lib/constants/addons';
 
 interface ClassItem {
   id: string;
@@ -38,6 +39,7 @@ interface DancerPrefill {
   plan_type?: string;
   installment_schedule?: { date: string; amount: number }[];
   payments_received?: { date: string; amount: number; method: string; note?: string }[];
+  addon?: string;
 }
 
 interface PendingInfo {
@@ -296,6 +298,23 @@ function DancerEditFields({
           ))}
         </div>
       </div>
+
+      {/* Add-ons — in case the family didn't pick (or picked the wrong) ones at registration */}
+      <Field label="Add-ons" htmlFor={`addon_${index}`}>
+        <select
+          id={`addon_${index}`}
+          name={`addon_${index}`}
+          defaultValue={dancer.addon ?? 'none'}
+          className={`${inputClass} w-64`}
+        >
+          {ADDON_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+              {o.amount > 0 ? ` — ${money(o.amount)}` : ''}
+            </option>
+          ))}
+        </select>
+      </Field>
 
       {/* Payment plan */}
       <div>
