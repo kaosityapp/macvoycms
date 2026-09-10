@@ -102,10 +102,11 @@ export function ContinuePrefilledForm({
               className={inputClass}
             />
           </Field>
-          <Field label="Parent 1 phone" htmlFor="parent1Phone">
+          <Field label="Parent 1 phone" htmlFor="parent1Phone" required>
             <input
               id="parent1Phone"
               name="parent1Phone"
+              required
               defaultValue={pending.parent1_phone ?? ''}
               className={inputClass}
             />

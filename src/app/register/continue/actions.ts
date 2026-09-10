@@ -46,6 +46,8 @@ export async function completePendingRegistration(
 
   const parent1Name = s(formData, 'parent1Name');
   if (!parent1Name) return { error: 'Parent 1 name is required.' };
+  const parent1Phone = s(formData, 'parent1Phone');
+  if (!parent1Phone) return { error: 'Parent 1 phone is required.' };
 
   for (const policy of POLICIES) {
     if (s(formData, `consent_${policy.type}`) !== 'on') {
