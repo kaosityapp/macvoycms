@@ -57,7 +57,7 @@ export default async function ProfilePage() {
               </ul>
               {plan && (
                 <p className="mt-3 text-sm text-brand-ink/60">
-                  {plan.plan_type === 'quarterly' ? 'Quarterly (4 installments)' : 'Paid in full'} ·{' '}
+                  {plan.plan_type === 'monthly' ? 'Monthly (4 installments)' : 'Paid in full'} ·{' '}
                   {money(plan.total_amount)}
                 </p>
               )}

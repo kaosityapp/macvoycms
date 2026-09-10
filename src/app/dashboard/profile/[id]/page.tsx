@@ -23,6 +23,7 @@ export default async function DancerApplicationPage({
     .from('family_members')
     .select(
       `id, first_name, last_name, address, city, province, postal_code, phone_number, phone_type, birthday, gender, medical_notes,
+       dancer_type, guardian1_name, guardian1_phone, guardian1_email, guardian2_name, guardian2_phone, guardian2_email,
        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, created_at,
        family:family_accounts(parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(status, class:classes(id, name, day_of_week, start_time, end_time, location:locations(name))),
@@ -124,6 +125,25 @@ export default async function DancerApplicationPage({
             <Row label="Province" value={d.province || '—'} />
             <Row label="Postal / Zip code" value={d.postal_code || '—'} />
             <Row label="Phone" value={d.phone_number ? `${d.phone_number} (${d.phone_type ?? '—'})` : '—'} />
+            <Row label="Dancer type" value={d.dancer_type === 'adult' ? 'Adult' : d.dancer_type === 'child' ? 'Child' : '—'} />
+            {d.dancer_type === 'child' && (
+              <>
+                <Row
+                  label="Guardian 1"
+                  value={
+                    d.guardian1_name
+                      ? `${d.guardian1_name} · ${d.guardian1_phone ?? ''} · ${d.guardian1_email ?? ''}`
+                      : '—'
+                  }
+                />
+                {d.guardian2_name && (
+                  <Row
+                    label="Guardian 2"
+                    value={`${d.guardian2_name} · ${d.guardian2_phone ?? ''} · ${d.guardian2_email ?? ''}`}
+                  />
+                )}
+              </>
+            )}
             <Row label="Medical" value={d.medical_notes || 'None'} />
             <Row
               label="Emergency contact"
@@ -208,8 +228,8 @@ export default async function DancerApplicationPage({
           <div className="text-sm">
             <h3 className="font-semibold text-brand-ink">Payment plan</h3>
             <p className="mt-1 text-brand-ink/70">
-              {activePlan.plan_type === 'quarterly'
-                ? 'Quarterly (4 installments)'
+              {activePlan.plan_type === 'monthly'
+                ? 'Monthly (4 installments)'
                 : activePlan.plan_type === 'paid_in_full'
                   ? 'Paid in full'
                   : 'Custom plan'}{' '}

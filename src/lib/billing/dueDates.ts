@@ -12,9 +12,18 @@ export function addMonths(iso: string, n: number): string {
   return base.toISOString().slice(0, 10);
 }
 
-/** Four quarterly due dates starting at `fromIso` (0, +3, +6, +9 months). */
-export function defaultQuarterlyDueDates(fromIso: string): string[] {
-  return [0, 3, 6, 9].map((n) => addMonths(fromIso, n));
+/**
+ * Four monthly due dates for the Fall session: the first payment is due the
+ * day the family chooses this plan (`fromIso`), and the remaining three fall
+ * on the 1st of each following month.
+ */
+export function defaultMonthlyDueDates(fromIso: string): string[] {
+  const [y, m] = fromIso.split('-').map(Number);
+  const firstOfMonth = (offset: number): string => {
+    const date = new Date(Date.UTC(y, m - 1 + offset, 1));
+    return date.toISOString().slice(0, 10);
+  };
+  return [fromIso, firstOfMonth(1), firstOfMonth(2), firstOfMonth(3)];
 }
 
 /**

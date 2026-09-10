@@ -141,9 +141,9 @@ export async function registerDancer(
     }
   }
 
-  // Payment plan (quarterly vs paid-in-full) is chosen by the family AFTER
-  // Debbie approves and sets a price — not here, since they don't know the
-  // price yet. See dashboard/payments/ChoosePlanForm.tsx.
+  // Payment plan (monthly vs paid-in-full, for the Fall Sessions) is chosen
+  // by the family AFTER Debbie approves and sets a price — not here, since
+  // they don't know the price yet. See dashboard/payments/ChoosePlanForm.tsx.
 
   // --- account: existing login, or create a new one ------------------------
   const {
@@ -152,6 +152,16 @@ export async function registerDancer(
 
   let familyAccountId: string;
   let parentEmail: string;
+  const dancerType = s(formData, 'registrantType') === 'adult' ? 'adult' : 'child';
+  // This dancer's own guardian contact — separate from the account holder,
+  // since an existing account can register dancers with different guardians.
+  // 'adult' dancers have no guardian (they're their own contact).
+  let guardian1Name: string | null = null;
+  let guardian1Phone: string | null = null;
+  let guardian1Email: string | null = null;
+  let guardian2Name: string | null = null;
+  let guardian2Phone: string | null = null;
+  let guardian2Email: string | null = null;
 
   if (user) {
     const { data: fa } = await admin
@@ -164,6 +174,18 @@ export async function registerDancer(
     }
     familyAccountId = fa.id;
     parentEmail = fa.parent1_email;
+
+    if (dancerType === 'child') {
+      guardian1Name = s(formData, 'guardian1Name');
+      guardian1Phone = s(formData, 'guardian1Phone');
+      guardian1Email = s(formData, 'guardian1Email');
+      if (!guardian1Name) return { error: 'Guardian 1 name is required.' };
+      if (!guardian1Phone) return { error: 'Guardian 1 phone is required.' };
+      if (!guardian1Email) return { error: 'Guardian 1 email is required.' };
+      guardian2Name = s(formData, 'guardian2Name') || null;
+      guardian2Phone = s(formData, 'guardian2Phone') || null;
+      guardian2Email = s(formData, 'guardian2Email') || null;
+    }
   } else {
     const parent = parentSchema.safeParse({
       parent1Name: s(formData, 'parent1Name'),
@@ -181,11 +203,21 @@ export async function registerDancer(
     // 'Adult' registrants are their own account holder — reuse the dancer's
     // own name/phone (collected once, in the Dancer section) instead of
     // asking for it twice.
-    const isAdultRegistrant = s(formData, 'registrantType') === 'adult';
-    const parent1Name = isAdultRegistrant ? `${member.data.firstName} ${member.data.lastName}` : (p.parent1Name ?? '').trim();
-    const parent1Phone = isAdultRegistrant ? member.data.phoneNumber : (p.parent1Phone ?? '').trim();
+    const parent1Name = dancerType === 'adult' ? `${member.data.firstName} ${member.data.lastName}` : (p.parent1Name ?? '').trim();
+    const parent1Phone = dancerType === 'adult' ? member.data.phoneNumber : (p.parent1Phone ?? '').trim();
     if (!parent1Name) return { error: 'Parent 1 name is required.' };
     if (!parent1Phone) return { error: 'Parent 1 phone is required.' };
+
+    // This first dancer's guardian is the account holder being created here
+    // (no separate ask) — 'adult' dancers have no guardian.
+    if (dancerType === 'child') {
+      guardian1Name = parent1Name;
+      guardian1Phone = parent1Phone;
+      guardian1Email = p.parent1Email;
+      guardian2Name = p.parent2Name || null;
+      guardian2Phone = p.parent2Phone || null;
+      guardian2Email = p.parent2Email || null;
+    }
 
     const { data: signUp, error: signUpError } = await supabase.auth.signUp({
       email: p.parent1Email,
@@ -246,6 +278,13 @@ export async function registerDancer(
       emergency_contact_name: m.emergencyName || null,
       emergency_contact_phone: m.emergencyPhone || null,
       emergency_contact_relationship: m.emergencyRelationship || null,
+      dancer_type: dancerType,
+      guardian1_name: guardian1Name,
+      guardian1_phone: guardian1Phone,
+      guardian1_email: guardian1Email,
+      guardian2_name: guardian2Name,
+      guardian2_phone: guardian2Phone,
+      guardian2_email: guardian2Email,
       // Not on Debbie's spreadsheet, so tuition isn't known yet — she sets
       // the price and approves before this dancer is billed for anything.
       status: 'pending_pricing',
@@ -290,7 +329,7 @@ export async function registerDancer(
     `${m.firstName} ${m.lastName} just registered (not on the spreadsheet) and needs a price set before they can pay.`,
     `Parent: ${parentEmail}`,
     `Classes: ${(classNames ?? []).map((c) => c.name).join(', ') || 'none selected'}`,
-    `Set their price from the admin Dancers list — approving it will email them to choose quarterly or paid-in-full and finalize payment.`,
+    `Set their Fall Sessions price from the admin Dancers list — approving it will email them to choose monthly payments or paid-in-full and finalize payment.`,
   ]);
 
   await sendPlainEmail(parentEmail, `Registration received — ${m.firstName} ${m.lastName}`, [

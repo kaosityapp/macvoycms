@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { durationMinutes } from '@/lib/season';
-import { computeTuition, quarterlySchedule, paidInFullSchedule } from '@/lib/billing/tuition';
-import { defaultQuarterlyDueDates, todayIso } from '@/lib/billing/dueDates';
+import { computeTuition, monthlySchedule, paidInFullSchedule } from '@/lib/billing/tuition';
+import { defaultMonthlyDueDates, todayIso } from '@/lib/billing/dueDates';
 
 /**
  * Recompute a dancer's tuition (hourly_rate × hours × total_sessions across
@@ -38,16 +38,16 @@ export async function recalcDefaultPlanForMember(
 
   // 'custom' and 'awaiting_choice' are both manually/admin-priced — never
   // overwritten by the class-formula recompute (awaiting_choice especially:
-  // the family hasn't even picked quarterly/paid-in-full yet, so there's no
+  // the family hasn't even picked monthly/paid-in-full yet, so there's no
   // schedule shape to recompute into).
   if (!plan || plan.plan_type === 'custom' || plan.plan_type === 'awaiting_choice') return tuition.total;
 
   const existing = Array.isArray(plan.installment_schedule) ? plan.installment_schedule : [];
   let schedule;
-  if (plan.plan_type === 'quarterly') {
+  if (plan.plan_type === 'monthly') {
     const dates =
-      existing.length === 4 ? existing.map((i: any) => i.date) : defaultQuarterlyDueDates(todayIso());
-    schedule = quarterlySchedule(tuition.total, dates);
+      existing.length === 4 ? existing.map((i: any) => i.date) : defaultMonthlyDueDates(todayIso());
+    schedule = monthlySchedule(tuition.total, dates);
   } else {
     const date = existing[0]?.date ?? todayIso();
     schedule = paidInFullSchedule(tuition.total, date);

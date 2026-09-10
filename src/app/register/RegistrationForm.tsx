@@ -116,9 +116,47 @@ export function RegistrationForm({
     <form action={action} className="space-y-10">
       {/* ---- Account / parent ---- */}
       {isLoggedIn ? (
-        <section className="rounded-lg bg-brand-pink/5 px-4 py-3 text-sm text-brand-ink/80">
-          Registering another dancer under{' '}
-          <span className="font-semibold">{parentName}</span>&apos;s account.
+        <section className="space-y-4">
+          <div className="rounded-lg bg-brand-pink/5 px-4 py-3 text-sm text-brand-ink/80">
+            Registering another dancer under{' '}
+            <span className="font-semibold">{parentName}</span>&apos;s account.
+          </div>
+          <Field label="Who is registering?" htmlFor="registrantType" required>
+            <select
+              id="registrantType"
+              name="registrantType"
+              required
+              className={inputClass}
+              value={registrantType}
+              onChange={(e) => setRegistrantType(e.target.value as 'child' | 'adult')}
+            >
+              <option value="child">Child — I&apos;m registering a dancer</option>
+              <option value="adult">Adult — this dancer is registering themselves</option>
+            </select>
+          </Field>
+          {isChild && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Guardian 1 name" htmlFor="guardian1Name" required>
+                <input id="guardian1Name" name="guardian1Name" required className={inputClass} />
+              </Field>
+              <Field label="Guardian 1 phone" htmlFor="guardian1Phone" required>
+                <input id="guardian1Phone" name="guardian1Phone" required className={inputClass} />
+              </Field>
+              <Field label="Guardian 1 email" htmlFor="guardian1Email" required>
+                <input id="guardian1Email" name="guardian1Email" type="email" required className={inputClass} />
+              </Field>
+              <div />
+              <Field label="Guardian 2 name" htmlFor="guardian2Name">
+                <input id="guardian2Name" name="guardian2Name" className={inputClass} />
+              </Field>
+              <Field label="Guardian 2 phone" htmlFor="guardian2Phone">
+                <input id="guardian2Phone" name="guardian2Phone" className={inputClass} />
+              </Field>
+              <Field label="Guardian 2 email" htmlFor="guardian2Email">
+                <input id="guardian2Email" name="guardian2Email" type="email" className={inputClass} />
+              </Field>
+            </div>
+          )}
         </section>
       ) : (
         <section className="space-y-4">
@@ -355,14 +393,15 @@ export function RegistrationForm({
         {hasPresetPricing && (
           <div className="rounded-lg border border-brand-ink/10 p-4">
             <div className="flex items-baseline justify-between">
-              <span className="text-sm text-brand-ink/70">Estimated tuition</span>
+              <span className="text-sm text-brand-ink/70">Estimated Fall Sessions tuition</span>
               <span className="text-xl font-bold text-brand-pink">{money(tuition)}</span>
             </div>
           </div>
         )}
         <p className="text-xs text-brand-ink/60">
-          The school confirms your final price after you submit, then emails you to log in and
-          choose between paying quarterly or in full, depending on your selections.
+          This price is for the Fall Sessions only. The school confirms your final price after you
+          submit, then emails you to log in and choose between monthly payments or paying in full,
+          depending on your selections.
         </p>
       </section>
 

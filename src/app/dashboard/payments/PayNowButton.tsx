@@ -132,10 +132,7 @@ export function PayNowButton({
               : `Pay ${money(amount)}`}
         </button>
       </div>
-      <span className="text-xs text-brand-ink/50">
-        Your card is saved on file for future installments — you can turn off automatic payments
-        anytime below.
-      </span>
+      <span className="text-xs text-brand-ink/50">Your card is saved on file for future installments.</span>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>
   );

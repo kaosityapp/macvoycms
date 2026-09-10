@@ -46,7 +46,7 @@ export default async function PaymentsPage() {
                 planId={p.planId}
                 memberName={p.memberName}
                 totalAmount={p.totalAmount}
-                canChooseQuarterly={p.canChooseQuarterly}
+                canPayMonthly={p.canPayMonthly}
                 classes={p.classes}
                 addons={p.addons}
               />
@@ -78,7 +78,7 @@ export default async function PaymentsPage() {
                   <div className="font-medium text-brand-ink">{money(item.amount)}</div>
                   <div className="text-sm text-brand-ink/60">
                     Due {formatDateLong(item.date)} · {item.memberName} ·{' '}
-                    {item.planType === 'quarterly' ? 'Quarterly' : 'Paid in full'}
+                    {item.planType === 'monthly' ? 'Monthly' : 'Paid in full'}
                   </div>
                 </div>
                 {canPayOnline ? (

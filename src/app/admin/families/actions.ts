@@ -161,11 +161,11 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
 }
 
 /**
- * Approve a pending-pricing dancer with just a total price, letting the
- * FAMILY choose quarterly vs paid-in-full afterward (rather than Debbie
- * building the exact installment schedule herself) — the plan_type
- * 'awaiting_choice' with an empty schedule signals this on the dashboard
- * (see dashboard/payments/ChoosePlanForm.tsx). Prefer this over
+ * Approve a pending-pricing dancer with just a Fall Sessions total price,
+ * letting the FAMILY choose monthly payments vs paid-in-full afterward
+ * (rather than Debbie building the exact installment schedule herself) — the
+ * plan_type 'awaiting_choice' with an empty schedule signals this on the
+ * dashboard (see dashboard/payments/ChoosePlanForm.tsx). Prefer this over
  * createCustomPlan for the normal pending_pricing approval; that form is
  * still there for when Debbie genuinely needs a non-standard schedule.
  */
@@ -206,8 +206,8 @@ export async function approveWithTotalPrice(_prev: ActionState, formData: FormDa
         parentEmail,
         `${dancer.first_name}'s registration is approved — MacVoy School of Irish Dance`,
         [
-          `Good news — ${dancer.first_name} ${dancer.last_name}'s registration has been approved, priced at ${money(total)}.`,
-          `Log in to your account to choose between paying quarterly or in full, and finalize payment: https://www.macvoyirishdance.com/dashboard/payments`,
+          `Good news — ${dancer.first_name} ${dancer.last_name}'s registration has been approved for the Fall Sessions, priced at ${money(total)}.`,
+          `Log in to your account to choose between monthly payments or paying in full, and finalize payment: https://www.macvoyirishdance.com/dashboard/payments`,
         ],
       );
     }
@@ -459,6 +459,13 @@ export async function updateDancerDetails(_prev: ActionState, formData: FormData
       postal_code: String(formData.get('postal_code') ?? '').trim() || null,
       phone_number: String(formData.get('phone_number') ?? '').trim() || null,
       phone_type: String(formData.get('phone_type') ?? '').trim() || null,
+      dancer_type: String(formData.get('dancer_type') ?? '').trim() || null,
+      guardian1_name: String(formData.get('guardian1_name') ?? '').trim() || null,
+      guardian1_phone: String(formData.get('guardian1_phone') ?? '').trim() || null,
+      guardian1_email: String(formData.get('guardian1_email') ?? '').trim() || null,
+      guardian2_name: String(formData.get('guardian2_name') ?? '').trim() || null,
+      guardian2_phone: String(formData.get('guardian2_phone') ?? '').trim() || null,
+      guardian2_email: String(formData.get('guardian2_email') ?? '').trim() || null,
       medical_notes: String(formData.get('medical_notes') ?? '').trim() || null,
       emergency_contact_name: String(formData.get('emergency_name') ?? '').trim() || null,
       emergency_contact_phone: String(formData.get('emergency_phone') ?? '').trim() || null,

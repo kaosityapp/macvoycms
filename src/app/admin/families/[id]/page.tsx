@@ -49,6 +49,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
     .from('family_members')
     .select(
       `id, first_name, last_name, status, address, city, province, postal_code, phone_number, phone_type, birthday, gender, medical_notes,
+       dancer_type, guardian1_name, guardian1_phone, guardian1_email, guardian2_name, guardian2_phone, guardian2_email,
        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, created_at,
        family:family_accounts(id, parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(id, status, class:classes(id, name, day_of_week, start_time, end_time, is_private, location:locations(name))),
@@ -121,8 +122,8 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
           <h2 className="text-lg font-semibold text-brand-pink">Payments</h2>
           {activePlan && (
             <span className="text-sm text-brand-ink/60">
-              {activePlan.plan_type === 'quarterly'
-                ? 'Quarterly'
+              {activePlan.plan_type === 'monthly'
+                ? 'Monthly'
                 : activePlan.plan_type === 'paid_in_full'
                   ? 'Paid in full'
                   : 'Custom'}{' '}
@@ -251,6 +252,13 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
             phone_number: d.phone_number,
             phone_type: d.phone_type,
             medical_notes: d.medical_notes,
+            dancer_type: d.dancer_type,
+            guardian1_name: d.guardian1_name,
+            guardian1_phone: d.guardian1_phone,
+            guardian1_email: d.guardian1_email,
+            guardian2_name: d.guardian2_name,
+            guardian2_phone: d.guardian2_phone,
+            guardian2_email: d.guardian2_email,
             emergency_contact_name: d.emergency_contact_name,
             emergency_contact_phone: d.emergency_contact_phone,
             emergency_contact_relationship: d.emergency_contact_relationship,

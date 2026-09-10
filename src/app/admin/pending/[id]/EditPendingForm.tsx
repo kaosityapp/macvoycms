@@ -52,7 +52,7 @@ interface PendingInfo {
 
 const PLAN_TYPES = [
   { value: 'custom', label: 'Custom' },
-  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'monthly', label: 'Monthly' },
   { value: 'paid_in_full', label: 'Paid in full' },
 ];
 

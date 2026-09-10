@@ -63,13 +63,14 @@ export interface InstallmentItem {
 }
 
 /**
- * Build a 4-installment quarterly schedule. Splits `total` into 4 parts,
- * pushing any rounding remainder into the first installment so the sum is
- * exact to the cent. `dueDates` must be 4 ISO dates.
+ * Build a 4-installment monthly schedule for the Fall session. Splits
+ * `total` into 4 parts, pushing any rounding remainder into the first
+ * installment so the sum is exact to the cent. `dueDates` must be 4 ISO
+ * dates.
  */
-export function quarterlySchedule(total: number, dueDates: string[]): InstallmentItem[] {
+export function monthlySchedule(total: number, dueDates: string[]): InstallmentItem[] {
   if (dueDates.length !== 4) {
-    throw new Error('quarterlySchedule expects exactly 4 due dates.');
+    throw new Error('monthlySchedule expects exactly 4 due dates.');
   }
   const cents = Math.round(total * 100);
   const base = Math.floor(cents / 4);

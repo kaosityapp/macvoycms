@@ -10,14 +10,14 @@ export function ChoosePlanForm({
   planId,
   memberName,
   totalAmount,
-  canChooseQuarterly,
+  canPayMonthly,
   classes,
   addons,
 }: {
   planId: string;
   memberName: string;
   totalAmount: number;
-  canChooseQuarterly: boolean;
+  canPayMonthly: boolean;
   classes: PlanAwaitingChoiceClass[];
   addons: PlanAwaitingChoiceAddon[];
 }) {
@@ -28,7 +28,9 @@ export function ChoosePlanForm({
     <li className="space-y-3 px-5 py-4">
       <div>
         <div className="font-medium text-brand-ink">{memberName}</div>
-        <div className="text-sm text-brand-ink/60">Approved! Here&apos;s what you&apos;re paying for.</div>
+        <div className="text-sm text-brand-ink/60">
+          Approved for the Fall Sessions! Here&apos;s what you&apos;re paying for.
+        </div>
       </div>
 
       <div className="rounded-lg border border-amber-200 bg-white/60 p-3 text-sm">
@@ -59,23 +61,23 @@ export function ChoosePlanForm({
           </div>
         )}
         <div className="mt-2 flex items-baseline justify-between border-t border-amber-300 pt-2">
-          <span className="font-semibold text-brand-ink">Total (HST included)</span>
+          <span className="font-semibold text-brand-ink">Fall Sessions total (HST included)</span>
           <span className="text-lg font-bold text-brand-pink">{money(totalAmount)}</span>
         </div>
       </div>
 
-      {!canChooseQuarterly && (
+      {!canPayMonthly && (
         <div className="text-xs text-brand-ink/50">
-          Quarterly is only available with 2 or more weekly classes — 1 class must be paid in full.
+          Monthly payments are only available with 2 or more weekly classes — 1 class must be paid in full.
         </div>
       )}
       <FormError message={state.error} />
       <div className="flex flex-wrap gap-3">
-        {canChooseQuarterly && (
+        {canPayMonthly && (
           <form action={action}>
             <input type="hidden" name="plan_id" value={planId} />
-            <input type="hidden" name="choice" value="quarterly" />
-            <SubmitButton pendingText="Saving…">Quarterly — 4× {money(installment)}</SubmitButton>
+            <input type="hidden" name="choice" value="monthly" />
+            <SubmitButton pendingText="Saving…">Monthly — 4× {money(installment)}</SubmitButton>
           </form>
         )}
         <form action={action}>

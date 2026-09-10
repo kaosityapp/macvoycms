@@ -398,12 +398,19 @@ export type Database = {
           birthday: string | null
           city: string | null
           created_at: string
+          dancer_type: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           emergency_contact_relationship: string | null
           family_account_id: string
           first_name: string
           gender: string | null
+          guardian1_email: string | null
+          guardian1_name: string | null
+          guardian1_phone: string | null
+          guardian2_email: string | null
+          guardian2_name: string | null
+          guardian2_phone: string | null
           id: string
           last_name: string
           medical_notes: string | null
@@ -419,12 +426,19 @@ export type Database = {
           birthday?: string | null
           city?: string | null
           created_at?: string
+          dancer_type?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
           family_account_id: string
           first_name: string
           gender?: string | null
+          guardian1_email?: string | null
+          guardian1_name?: string | null
+          guardian1_phone?: string | null
+          guardian2_email?: string | null
+          guardian2_name?: string | null
+          guardian2_phone?: string | null
           id?: string
           last_name: string
           medical_notes?: string | null
@@ -440,12 +454,19 @@ export type Database = {
           birthday?: string | null
           city?: string | null
           created_at?: string
+          dancer_type?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
           family_account_id?: string
           first_name?: string
           gender?: string | null
+          guardian1_email?: string | null
+          guardian1_name?: string | null
+          guardian1_phone?: string | null
+          guardian2_email?: string | null
+          guardian2_name?: string | null
+          guardian2_phone?: string | null
           id?: string
           last_name?: string
           medical_notes?: string | null

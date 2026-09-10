@@ -246,17 +246,17 @@ export interface PlanAwaitingChoice {
   memberId: string;
   memberName: string;
   totalAmount: number;
-  /** Quarterly is only offered at 2+ weekly classes — 1 class must be paid in full. */
-  canChooseQuarterly: boolean;
+  /** Monthly payments are only offered at 2+ weekly classes — 1 class must be paid in full. */
+  canPayMonthly: boolean;
   classes: PlanAwaitingChoiceClass[];
   addons: PlanAwaitingChoiceAddon[];
 }
 
 /**
- * Plans Debbie approved with just a total price — the family still needs to
- * pick quarterly vs paid-in-full before there's an actual schedule to pay
- * against. See admin/families/actions.ts (approveWithTotalPrice) and
- * dashboard/payments/actions.ts (chooseFamilyPlan).
+ * Plans Debbie approved with just a total price (for the Fall session) — the
+ * family still needs to pick monthly payments vs paid-in-full before there's
+ * an actual schedule to pay against. See admin/families/actions.ts
+ * (approveWithTotalPrice) and dashboard/payments/actions.ts (chooseFamilyPlan).
  */
 export async function getPlansAwaitingChoice(accountId: string): Promise<PlanAwaitingChoice[]> {
   const supabase = await createClient();
@@ -280,7 +280,7 @@ export async function getPlansAwaitingChoice(accountId: string): Promise<PlanAwa
           memberId: m.id,
           memberName: `${m.first_name} ${m.last_name}`,
           totalAmount: Number(plan.total_amount),
-          canChooseQuarterly: activeEnrollments.length >= 2,
+          canPayMonthly: activeEnrollments.length >= 2,
           classes: activeEnrollments.map((e: any) => ({
             name: e.class.name,
             dayOfWeek: e.class.day_of_week,

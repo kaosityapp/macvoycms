@@ -44,7 +44,7 @@ interface PendingInfo {
 }
 
 const PLAN_LABEL: Record<string, string> = {
-  quarterly: 'Quarterly (4 installments)',
+  monthly: 'Monthly (4 installments)',
   paid_in_full: 'Paid in full',
   custom: 'Custom plan',
 };

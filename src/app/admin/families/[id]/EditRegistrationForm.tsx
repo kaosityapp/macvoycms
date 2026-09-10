@@ -19,6 +19,13 @@ interface Props {
     phone_number: string | null;
     phone_type: string | null;
     medical_notes: string | null;
+    dancer_type: string | null;
+    guardian1_name: string | null;
+    guardian1_phone: string | null;
+    guardian1_email: string | null;
+    guardian2_name: string | null;
+    guardian2_phone: string | null;
+    guardian2_email: string | null;
     emergency_contact_name: string | null;
     emergency_contact_phone: string | null;
     emergency_contact_relationship: string | null;
@@ -62,6 +69,13 @@ export function EditRegistrationForm({ memberId, familyId, dancer, family }: Pro
               <input id="gender" name="gender" defaultValue={dancer.gender ?? ''} className={inputClass} />
             </Field>
           </div>
+          <Field label="Dancer type" htmlFor="dancer_type">
+            <select id="dancer_type" name="dancer_type" defaultValue={dancer.dancer_type ?? ''} className={inputClass}>
+              <option value="">Select…</option>
+              <option value="child">Child</option>
+              <option value="adult">Adult</option>
+            </select>
+          </Field>
           <Field label="Address" htmlFor="address">
             <input id="address" name="address" defaultValue={dancer.address ?? ''} className={inputClass} />
           </Field>
@@ -121,6 +135,27 @@ export function EditRegistrationForm({ memberId, familyId, dancer, family }: Pro
                 defaultValue={dancer.emergency_contact_relationship ?? ''}
                 className={inputClass}
               />
+            </Field>
+          </div>
+          <h4 className="text-sm font-semibold text-brand-ink">Guardian (this dancer)</h4>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Field label="Guardian 1 name" htmlFor="guardian1_name">
+              <input id="guardian1_name" name="guardian1_name" defaultValue={dancer.guardian1_name ?? ''} className={inputClass} />
+            </Field>
+            <Field label="Guardian 1 phone" htmlFor="guardian1_phone">
+              <input id="guardian1_phone" name="guardian1_phone" defaultValue={dancer.guardian1_phone ?? ''} className={inputClass} />
+            </Field>
+            <Field label="Guardian 1 email" htmlFor="guardian1_email">
+              <input id="guardian1_email" name="guardian1_email" type="email" defaultValue={dancer.guardian1_email ?? ''} className={inputClass} />
+            </Field>
+            <Field label="Guardian 2 name" htmlFor="guardian2_name">
+              <input id="guardian2_name" name="guardian2_name" defaultValue={dancer.guardian2_name ?? ''} className={inputClass} />
+            </Field>
+            <Field label="Guardian 2 phone" htmlFor="guardian2_phone">
+              <input id="guardian2_phone" name="guardian2_phone" defaultValue={dancer.guardian2_phone ?? ''} className={inputClass} />
+            </Field>
+            <Field label="Guardian 2 email" htmlFor="guardian2_email">
+              <input id="guardian2_email" name="guardian2_email" type="email" defaultValue={dancer.guardian2_email ?? ''} className={inputClass} />
             </Field>
           </div>
         </div>

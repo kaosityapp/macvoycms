@@ -11,8 +11,8 @@ import {
   lookupCustomerIdByCode,
   getAchTransaction,
 } from '@/lib/integrations/helcim';
-import { quarterlySchedule, paidInFullSchedule } from '@/lib/billing/tuition';
-import { defaultQuarterlyDueDates, todayIso } from '@/lib/billing/dueDates';
+import { monthlySchedule, paidInFullSchedule } from '@/lib/billing/tuition';
+import { defaultMonthlyDueDates, todayIso } from '@/lib/billing/dueDates';
 import type { Json } from '@/lib/types/database';
 
 export interface StartPaymentResult {
@@ -226,10 +226,10 @@ export interface ChoosePlanResult {
 }
 
 /**
- * The family's own choice of quarterly vs paid-in-full, for a plan Debbie
- * approved with just a total price (plan_type 'awaiting_choice', empty
- * schedule). Computes the actual installment schedule and turns the plan
- * into a normal 'quarterly'/'paid_in_full' one.
+ * The family's own choice of monthly payments vs paid-in-full for the Fall
+ * session, for a plan Debbie approved with just a total price (plan_type
+ * 'awaiting_choice', empty schedule). Computes the actual installment
+ * schedule and turns the plan into a normal 'monthly'/'paid_in_full' one.
  */
 export async function chooseFamilyPlan(
   _prev: ChoosePlanResult,
@@ -237,7 +237,7 @@ export async function chooseFamilyPlan(
 ): Promise<ChoosePlanResult> {
   const planId = String(formData.get('plan_id') ?? '');
   const choice = String(formData.get('choice') ?? '');
-  if (choice !== 'quarterly' && choice !== 'paid_in_full') return { error: 'Choose a plan.' };
+  if (choice !== 'monthly' && choice !== 'paid_in_full') return { error: 'Choose a plan.' };
 
   const supabase = await createClient();
   // Ownership check (RLS "own plans read") before the admin-client write —
@@ -250,24 +250,24 @@ export async function chooseFamilyPlan(
   if (!plan) return { error: 'Plan not found.' };
   if (plan.plan_type !== 'awaiting_choice') return { error: 'This plan has already been set up.' };
 
-  // Quarterly is only offered at 2+ weekly classes — re-checked here since
-  // a client can't be trusted to enforce this itself.
-  if (choice === 'quarterly') {
+  // Monthly payments are only offered at 2+ weekly classes — re-checked here
+  // since a client can't be trusted to enforce this itself.
+  if (choice === 'monthly') {
     const { count } = await supabase
       .from('enrollments')
       .select('id', { count: 'exact', head: true })
       .eq('family_member_id', plan.family_member_id)
       .eq('status', 'active');
     if ((count ?? 0) < 2) {
-      return { error: 'Quarterly is only available with 2 or more weekly classes — please pay in full.' };
+      return { error: 'Monthly payments are only available with 2 or more weekly classes — please pay in full.' };
     }
   }
 
   const total = Number(plan.total_amount);
   const today = todayIso();
   const schedule =
-    choice === 'quarterly'
-      ? quarterlySchedule(total, defaultQuarterlyDueDates(today))
+    choice === 'monthly'
+      ? monthlySchedule(total, defaultMonthlyDueDates(today))
       : paidInFullSchedule(total, today);
 
   const admin = createAdminClient();
