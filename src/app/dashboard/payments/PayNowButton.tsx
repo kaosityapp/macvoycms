@@ -45,7 +45,6 @@ export function PayNowButton({
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [saveCard, setSaveCard] = useState(false);
   const listenerRef = useRef<((e: MessageEvent) => void) | null>(null);
 
   useEffect(() => {
@@ -58,7 +57,9 @@ export function PayNowButton({
     setPhase('starting');
     setError(null);
 
-    const result = await startPayment({ memberId, paymentPlanId, installmentIndex, amount, saveCard });
+    // Always saved — recurring installment charges (and Debbie's failed-payment
+    // retry) both depend on having a stored card/bank token on file.
+    const result = await startPayment({ memberId, paymentPlanId, installmentIndex, amount, saveCard: true });
     if (result.error || !result.checkoutToken || !result.reference) {
       setError(result.error ?? 'Could not start the payment.');
       setPhase('error');
@@ -118,15 +119,6 @@ export function PayNowButton({
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-brand-ink/60">
-          <input
-            type="checkbox"
-            checked={saveCard}
-            onChange={(e) => setSaveCard(e.target.checked)}
-            className="h-3.5 w-3.5 accent-brand-pink"
-          />
-          Save for automatic payments
-        </label>
         <button
           type="button"
           onClick={handlePay}
@@ -140,6 +132,10 @@ export function PayNowButton({
               : `Pay ${money(amount)}`}
         </button>
       </div>
+      <span className="text-xs text-brand-ink/50">
+        Your card is saved on file for future installments — you can turn off automatic payments
+        anytime below.
+      </span>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>
   );

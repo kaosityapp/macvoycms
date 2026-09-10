@@ -4,7 +4,7 @@ import { useActionState, useMemo, useState } from 'react';
 import { registerDancer, type RegistrationState } from './actions';
 import { POLICIES } from '@/lib/consents/policies';
 import { ADDON_OPTIONS } from '@/lib/constants/addons';
-import { Field, FormError, SubmitButton, inputClass, labelClass } from '@/components/ui';
+import { Field, FormError, SubmitButton, inputClass } from '@/components/ui';
 
 interface ClassItem {
   id: string;
@@ -101,6 +101,7 @@ export function RegistrationForm({
     }
     return { tuition: Math.round(total * 100) / 100, hasUnpriced: unpriced };
   }, [selected, allClasses]);
+  const hasPresetPricing = selected.size > 0 && !hasUnpriced;
 
   function toggleClass(id: string) {
     setSelected((prev) => {
@@ -137,13 +138,23 @@ export function RegistrationForm({
               <option value="adult">Adult — registering myself</option>
             </select>
           </Field>
+          {!isChild && (
+            <p className="text-xs text-brand-ink/60">
+              We&apos;ll use your name and phone number from the Dancer section below — just add
+              your login email and password here.
+            </p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={isChild ? 'Parent 1 name' : 'Full name'} htmlFor="parent1Name" required>
-              <input id="parent1Name" name="parent1Name" required className={inputClass} />
-            </Field>
-            <Field label={isChild ? 'Parent 1 phone' : 'Phone number'} htmlFor="parent1Phone" required>
-              <input id="parent1Phone" name="parent1Phone" required className={inputClass} />
-            </Field>
+            {isChild && (
+              <>
+                <Field label="Parent 1 name" htmlFor="parent1Name" required>
+                  <input id="parent1Name" name="parent1Name" required className={inputClass} />
+                </Field>
+                <Field label="Parent 1 phone" htmlFor="parent1Phone" required>
+                  <input id="parent1Phone" name="parent1Phone" required className={inputClass} />
+                </Field>
+              </>
+            )}
             <Field
               label={isChild ? 'Parent 1 email' : 'Email'}
               htmlFor="parent1Email"
@@ -327,25 +338,31 @@ export function RegistrationForm({
                 className="h-4 w-4 accent-brand-pink"
               />
               <span className="flex-1">{o.label}</span>
-              {o.amount > 0 && <span className="text-sm text-brand-ink/70">{money(o.amount)}</span>}
+              {hasPresetPricing && o.amount > 0 && (
+                <span className="text-sm text-brand-ink/70">{money(o.amount)}</span>
+              )}
             </label>
           ))}
         </div>
-        <p className="text-xs text-brand-ink/60">Add-on prices to be confirmed.</p>
+        {!hasPresetPricing && (
+          <p className="text-xs text-brand-ink/60">Add-on prices will be confirmed with your final price.</p>
+        )}
       </section>
 
       {/* ---- Payment plan ---- */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-brand-pink">Payment plan</h2>
-        <div className="rounded-lg border border-brand-ink/10 p-4">
-          <div className="flex items-baseline justify-between">
-            <span className="text-sm text-brand-ink/70">Estimated tuition</span>
-            <span className="text-xl font-bold text-brand-pink">{money(tuition)}</span>
+        {hasPresetPricing && (
+          <div className="rounded-lg border border-brand-ink/10 p-4">
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm text-brand-ink/70">Estimated tuition</span>
+              <span className="text-xl font-bold text-brand-pink">{money(tuition)}</span>
+            </div>
           </div>
-        </div>
+        )}
         <p className="text-xs text-brand-ink/60">
-          This is an estimate. The school confirms your final price after you submit, then emails
-          you to log in and choose between paying quarterly or in full.
+          The school confirms your final price after you submit, then emails you to log in and
+          choose between paying quarterly or in full, depending on your selections.
         </p>
       </section>
 
@@ -388,7 +405,6 @@ export function RegistrationForm({
         <SubmitButton pendingText="Registering…" disabled={!allAgreed}>
           Complete registration
         </SubmitButton>
-        <span className={labelClass}>{money(tuition)} tuition</span>
       </div>
     </form>
   );

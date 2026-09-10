@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getAddon } from '@/lib/constants/addons';
 
 export interface ActiveEnrollment {
   memberId: string;
@@ -227,6 +228,19 @@ export async function getAutoChargePlans(accountId: string): Promise<AutoChargeP
   return out;
 }
 
+export interface PlanAwaitingChoiceClass {
+  name: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  locationName: string;
+}
+
+export interface PlanAwaitingChoiceAddon {
+  label: string;
+  amount: number;
+}
+
 export interface PlanAwaitingChoice {
   planId: string;
   memberId: string;
@@ -234,6 +248,8 @@ export interface PlanAwaitingChoice {
   totalAmount: number;
   /** Quarterly is only offered at 2+ weekly classes — 1 class must be paid in full. */
   canChooseQuarterly: boolean;
+  classes: PlanAwaitingChoiceClass[];
+  addons: PlanAwaitingChoiceAddon[];
 }
 
 /**
@@ -247,7 +263,10 @@ export async function getPlansAwaitingChoice(accountId: string): Promise<PlanAwa
   const { data } = await supabase
     .from('family_members')
     .select(
-      'id, first_name, last_name, payment_plans(id, status, plan_type, total_amount), enrollments(status)',
+      `id, first_name, last_name,
+       payment_plans(id, status, plan_type, total_amount),
+       enrollments(status, class:classes(name, day_of_week, start_time, end_time, location:locations(name))),
+       order_items(item_type, amount)`,
     )
     .eq('family_account_id', accountId);
 
@@ -255,13 +274,24 @@ export async function getPlansAwaitingChoice(accountId: string): Promise<PlanAwa
   for (const m of (data ?? []) as any[]) {
     for (const plan of m.payment_plans ?? []) {
       if (plan.status === 'active' && plan.plan_type === 'awaiting_choice') {
-        const classCount = (m.enrollments ?? []).filter((e: any) => e.status === 'active').length;
+        const activeEnrollments = (m.enrollments ?? []).filter((e: any) => e.status === 'active' && e.class);
         out.push({
           planId: plan.id,
           memberId: m.id,
           memberName: `${m.first_name} ${m.last_name}`,
           totalAmount: Number(plan.total_amount),
-          canChooseQuarterly: classCount >= 2,
+          canChooseQuarterly: activeEnrollments.length >= 2,
+          classes: activeEnrollments.map((e: any) => ({
+            name: e.class.name,
+            dayOfWeek: e.class.day_of_week,
+            startTime: e.class.start_time,
+            endTime: e.class.end_time,
+            locationName: e.class.location?.name ?? '',
+          })),
+          addons: (m.order_items ?? []).map((item: any) => ({
+            label: getAddon(item.item_type)?.label ?? item.item_type,
+            amount: Number(item.amount),
+          })),
         });
       }
     }

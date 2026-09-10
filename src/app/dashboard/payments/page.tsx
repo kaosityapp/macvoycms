@@ -47,6 +47,8 @@ export default async function PaymentsPage() {
                 memberName={p.memberName}
                 totalAmount={p.totalAmount}
                 canChooseQuarterly={p.canChooseQuarterly}
+                classes={p.classes}
+                addons={p.addons}
               />
             ))}
           </ul>

@@ -88,8 +88,10 @@ const memberSchema = z.object({
 });
 
 const parentSchema = z.object({
-  parent1Name: z.string().min(1, 'Parent name is required.'),
-  parent1Phone: z.string().min(1, 'Parent 1 phone is required.'),
+  // Required for a 'child' registrant; for 'adult' these are derived from the
+  // dancer's own name/phone instead (see registerDancer) — no repeat entry.
+  parent1Name: z.string().optional(),
+  parent1Phone: z.string().optional(),
   parent1Email: z.string().email('Enter a valid parent email.'),
   parent2Name: z.string().optional(),
   parent2Phone: z.string().optional(),
@@ -176,6 +178,15 @@ export async function registerDancer(
     if (!parent.success) return { error: parent.error.errors[0].message };
     const p = parent.data;
 
+    // 'Adult' registrants are their own account holder — reuse the dancer's
+    // own name/phone (collected once, in the Dancer section) instead of
+    // asking for it twice.
+    const isAdultRegistrant = s(formData, 'registrantType') === 'adult';
+    const parent1Name = isAdultRegistrant ? `${member.data.firstName} ${member.data.lastName}` : (p.parent1Name ?? '').trim();
+    const parent1Phone = isAdultRegistrant ? member.data.phoneNumber : (p.parent1Phone ?? '').trim();
+    if (!parent1Name) return { error: 'Parent 1 name is required.' };
+    if (!parent1Phone) return { error: 'Parent 1 phone is required.' };
+
     const { data: signUp, error: signUpError } = await supabase.auth.signUp({
       email: p.parent1Email,
       password: p.password,
@@ -198,8 +209,8 @@ export async function registerDancer(
       .from('family_accounts')
       .insert({
         auth_user_id: signUp.user.id,
-        parent1_name: p.parent1Name,
-        parent1_phone: p.parent1Phone || null,
+        parent1_name: parent1Name,
+        parent1_phone: parent1Phone || null,
         parent1_email: p.parent1Email,
         parent2_name: p.parent2Name || null,
         parent2_phone: p.parent2Phone || null,
