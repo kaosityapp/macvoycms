@@ -15,6 +15,7 @@ import { PasswordResetButton } from './PasswordResetButton';
 import { DeleteDancerButton } from './DeleteDancerButton';
 import { CancelStudentButton } from './CancelStudentButton';
 import { EditRegistrationForm } from './EditRegistrationForm';
+import { ImpersonateButton } from './ImpersonateButton';
 import {
   enrollDancer,
   removeEnrollment,
@@ -345,12 +346,15 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
 
       {/* ===== Actions ===== */}
       <section className="space-y-4 rounded-lg border border-brand-ink/10 bg-white p-5">
-        <Link
-          href={`/admin/families/${d.id}/view`}
-          className="inline-block rounded-md border border-brand-pink px-4 py-2 text-sm font-semibold text-brand-pink hover:bg-brand-pink/5"
-        >
-          Dancer view — see what they see
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={`/admin/families/${d.id}/view`}
+            className="inline-block rounded-md border border-brand-pink px-4 py-2 text-sm font-semibold text-brand-pink hover:bg-brand-pink/5"
+          >
+            Quick view — upcoming schedule only
+          </Link>
+        </div>
+        <ImpersonateButton memberId={d.id} />
         <div className="flex flex-wrap items-center gap-3 border-t border-brand-ink/10 pt-4">
           {d.status === 'removed' ? (
             <form action={reactivateStudent}>

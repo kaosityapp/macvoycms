@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdmin } from '@/lib/auth';
 import { recalcDefaultPlanForMember } from '@/lib/admin/billing';
 import { findDueInstallment, attemptInstallmentCharge } from '@/lib/billing/autoCharge';
@@ -411,4 +412,42 @@ export async function deleteDancer(formData: FormData): Promise<void> {
   await supabase.from('family_members').delete().eq('id', memberId);
   revalidatePath('/admin/families');
   redirect('/admin/families');
+}
+
+export interface ImpersonateState {
+  error?: string;
+  url?: string;
+}
+
+/**
+ * Generate a one-time login link for this dancer's family — lets Debbie see
+ * exactly what they see on their dashboard. Uses Supabase's admin
+ * generateLink API (a real magic link, not a fake preview) rather than the
+ * limited schedule-only /view page. The link is returned directly to the
+ * admin's own browser response — never logged or persisted — and is
+ * single-use / time-limited by Supabase itself.
+ */
+export async function impersonateFamily(_prev: ImpersonateState, formData: FormData): Promise<ImpersonateState> {
+  await requireAdmin();
+
+  const memberId = String(formData.get('member_id') ?? '');
+  if (!memberId) return { error: 'Missing dancer.' };
+
+  const admin = createAdminClient();
+  const { data: member } = await admin
+    .from('family_members')
+    .select('family:family_accounts(parent1_email)')
+    .eq('id', memberId)
+    .maybeSingle();
+  const email = (member as any)?.family?.parent1_email as string | undefined;
+  if (!email) return { error: 'No login found for this family.' };
+
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: 'magiclink',
+    email,
+    options: { redirectTo: 'https://www.macvoyirishdance.com/auth/callback?next=/dashboard' },
+  });
+  if (error || !data?.properties?.action_link) return { error: 'Could not generate a login link.' };
+
+  return { url: data.properties.action_link };
 }
