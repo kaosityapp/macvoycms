@@ -21,7 +21,7 @@ export async function requireUser(): Promise<User> {
   return user;
 }
 
-/** The family_account attached to the current login, or null. */
+/** The family_account attached to the current login (either parent), or null. */
 export async function getFamilyAccount(): Promise<FamilyAccount | null> {
   const user = await getSessionUser();
   if (!user) return null;
@@ -29,7 +29,7 @@ export async function getFamilyAccount(): Promise<FamilyAccount | null> {
   const { data } = await supabase
     .from('family_accounts')
     .select('*')
-    .eq('auth_user_id', user.id)
+    .or(`auth_user_id.eq.${user.id},parent2_auth_user_id.eq.${user.id}`)
     .maybeSingle();
   return data;
 }

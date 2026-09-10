@@ -167,7 +167,7 @@ export async function registerDancer(
     const { data: fa } = await admin
       .from('family_accounts')
       .select('id, parent1_email')
-      .eq('auth_user_id', user.id)
+      .or(`auth_user_id.eq.${user.id},parent2_auth_user_id.eq.${user.id}`)
       .maybeSingle();
     if (!fa) {
       return { error: 'No family account is linked to your login. Please contact us.' };

@@ -85,7 +85,7 @@ export async function completePendingRegistration(
   const { data: existingAccount } = await admin
     .from('family_accounts')
     .select('id')
-    .eq('auth_user_id', user.id)
+    .or(`auth_user_id.eq.${user.id},parent2_auth_user_id.eq.${user.id}`)
     .maybeSingle();
 
   let familyAccountId: string;

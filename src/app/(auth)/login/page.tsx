@@ -46,6 +46,12 @@ export default function LoginPage() {
           New here? Register
         </Link>
       </div>
+      <p className="text-center text-sm text-brand-ink/60">
+        Parent 2 without a password yet?{' '}
+        <Link href="/parent2-signup" className="text-brand-pink hover:underline">
+          Set up your login
+        </Link>
+      </p>
     </div>
   );
 }

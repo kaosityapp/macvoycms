@@ -354,6 +354,7 @@ export type Database = {
           parent1_email: string
           parent1_name: string
           parent1_phone: string | null
+          parent2_auth_user_id: string | null
           parent2_email: string | null
           parent2_name: string | null
           parent2_phone: string | null
@@ -367,6 +368,7 @@ export type Database = {
           parent1_email: string
           parent1_name: string
           parent1_phone?: string | null
+          parent2_auth_user_id?: string | null
           parent2_email?: string | null
           parent2_name?: string | null
           parent2_phone?: string | null
@@ -382,6 +384,7 @@ export type Database = {
           parent1_email?: string
           parent1_name?: string
           parent1_phone?: string | null
+          parent2_auth_user_id?: string | null
           parent2_email?: string | null
           parent2_name?: string | null
           parent2_phone?: string | null
