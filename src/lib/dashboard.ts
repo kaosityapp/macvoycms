@@ -232,6 +232,8 @@ export interface PlanAwaitingChoice {
   memberId: string;
   memberName: string;
   totalAmount: number;
+  /** Quarterly is only offered at 2+ weekly classes — 1 class must be paid in full. */
+  canChooseQuarterly: boolean;
 }
 
 /**
@@ -244,18 +246,22 @@ export async function getPlansAwaitingChoice(accountId: string): Promise<PlanAwa
   const supabase = await createClient();
   const { data } = await supabase
     .from('family_members')
-    .select('id, first_name, last_name, payment_plans(id, status, plan_type, total_amount)')
+    .select(
+      'id, first_name, last_name, payment_plans(id, status, plan_type, total_amount), enrollments(status)',
+    )
     .eq('family_account_id', accountId);
 
   const out: PlanAwaitingChoice[] = [];
   for (const m of (data ?? []) as any[]) {
     for (const plan of m.payment_plans ?? []) {
       if (plan.status === 'active' && plan.plan_type === 'awaiting_choice') {
+        const classCount = (m.enrollments ?? []).filter((e: any) => e.status === 'active').length;
         out.push({
           planId: plan.id,
           memberId: m.id,
           memberName: `${m.first_name} ${m.last_name}`,
           totalAmount: Number(plan.total_amount),
+          canChooseQuarterly: classCount >= 2,
         });
       }
     }

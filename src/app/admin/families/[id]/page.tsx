@@ -10,6 +10,7 @@ import { POLICIES } from '@/lib/consents/policies';
 import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
 import { ApproveWithTotalForm } from './ApproveWithTotalForm';
+import { EditAddonForm } from './EditAddonForm';
 import { RecordPaymentForm } from './RecordPaymentForm';
 import { RetryInstallmentControls } from './RetryInstallmentControls';
 import { PasswordResetButton } from './PasswordResetButton';
@@ -260,18 +261,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
         <PasswordResetButton email={family?.parent1_email ?? ''} />
 
         {/* Add-ons */}
-        {(d.order_items ?? []).length > 0 && (
-          <div className="text-sm">
-            <h3 className="font-semibold text-brand-ink">Add-ons</h3>
-            <ul className="mt-1 text-brand-ink/70">
-              {d.order_items.map((o: any, i: number) => (
-                <li key={i} className="capitalize">
-                  {o.item_type} — {money(o.amount)}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <EditAddonForm memberId={d.id} current={(d.order_items ?? [])[0]?.item_type ?? 'none'} />
 
         {/* Waivers */}
         <div className="text-sm">

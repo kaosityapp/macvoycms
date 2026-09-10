@@ -10,6 +10,7 @@ import { findDueInstallment, attemptInstallmentCharge } from '@/lib/billing/auto
 import { todayIso, addDays } from '@/lib/billing/dueDates';
 import { sendPlainEmail } from '@/lib/integrations/adminAlert';
 import { money } from '@/lib/format';
+import { ADDON_OPTIONS, getAddon } from '@/lib/constants/addons';
 
 export interface ActionState {
   error?: string;
@@ -480,6 +481,79 @@ export async function updateDancerDetails(_prev: ActionState, formData: FormData
 
   revalidateDancer(memberId);
   return { success: 'Saved.' };
+}
+
+/**
+ * Change a confirmed dancer's add-on selection. Their active payment plan's
+ * total (and the last installment in its schedule) is adjusted by the price
+ * difference on top of whatever tuition is already set — the family's
+ * existing installments stay as agreed, only the change is layered on.
+ */
+export async function updateDancerAddon(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const memberId = String(formData.get('member_id') ?? '');
+  if (!memberId) return { error: 'Missing dancer.' };
+
+  const addonValue = String(formData.get('addon') ?? 'none');
+  const newAddon = getAddon(addonValue);
+  if (!newAddon) return { error: 'Unknown add-on.' };
+
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from('order_items')
+    .select('id, amount')
+    .eq('family_member_id', memberId);
+  const oldAmount = (existing ?? []).reduce((sum, o) => sum + Number(o.amount), 0);
+  const newAmount = newAddon.amount;
+  const delta = Math.round((newAmount - oldAmount) * 100) / 100;
+
+  // Replace the old selection entirely — one add-on choice at a time,
+  // same as at registration.
+  await supabase.from('order_items').delete().eq('family_member_id', memberId);
+  if (newAddon.itemType) {
+    const { error } = await supabase.from('order_items').insert({
+      family_member_id: memberId,
+      item_type: newAddon.itemType,
+      amount: newAmount,
+    });
+    if (error) return { error: 'Could not save the add-on.' };
+  }
+
+  if (delta !== 0) {
+    const { data: plan } = await supabase
+      .from('payment_plans')
+      .select('id, total_amount, installment_schedule')
+      .eq('family_member_id', memberId)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (plan) {
+      const schedule = Array.isArray(plan.installment_schedule)
+        ? (plan.installment_schedule as { date: string; amount: number }[])
+        : [];
+      if (schedule.length > 0) {
+        const lastIndex = schedule.length - 1;
+        schedule[lastIndex] = {
+          ...schedule[lastIndex],
+          amount: Math.max(0, Math.round((Number(schedule[lastIndex].amount) + delta) * 100) / 100),
+        };
+      }
+      await supabase
+        .from('payment_plans')
+        .update({
+          total_amount: Math.round((Number(plan.total_amount) + delta) * 100) / 100,
+          installment_schedule: schedule,
+        })
+        .eq('id', plan.id);
+    }
+  }
+
+  revalidateDancer(memberId);
+  return {
+    success:
+      delta !== 0
+        ? `Add-on updated — plan total adjusted by ${delta > 0 ? '+' : ''}${money(delta)}.`
+        : 'Add-on updated.',
+  };
 }
 
 /** Delete: permanently remove the dancer and all their records (cascades). */

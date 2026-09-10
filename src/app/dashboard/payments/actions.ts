@@ -244,11 +244,24 @@ export async function chooseFamilyPlan(
   // same reasoning as setAutoCharge above.
   const { data: plan } = await supabase
     .from('payment_plans')
-    .select('id, plan_type, total_amount')
+    .select('id, plan_type, total_amount, family_member_id')
     .eq('id', planId)
     .maybeSingle();
   if (!plan) return { error: 'Plan not found.' };
   if (plan.plan_type !== 'awaiting_choice') return { error: 'This plan has already been set up.' };
+
+  // Quarterly is only offered at 2+ weekly classes — re-checked here since
+  // a client can't be trusted to enforce this itself.
+  if (choice === 'quarterly') {
+    const { count } = await supabase
+      .from('enrollments')
+      .select('id', { count: 'exact', head: true })
+      .eq('family_member_id', plan.family_member_id)
+      .eq('status', 'active');
+    if ((count ?? 0) < 2) {
+      return { error: 'Quarterly is only available with 2 or more weekly classes — please pay in full.' };
+    }
+  }
 
   const total = Number(plan.total_amount);
   const today = todayIso();

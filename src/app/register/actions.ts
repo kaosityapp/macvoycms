@@ -86,9 +86,9 @@ const parentSchema = z.object({
   parent1Name: z.string().min(1, 'Parent name is required.'),
   parent1Phone: z.string().min(1, 'Parent 1 phone is required.'),
   parent1Email: z.string().email('Enter a valid parent email.'),
-  parent2Name: z.string().min(1, 'Parent 2 name is required.'),
-  parent2Phone: z.string().min(1, 'Parent 2 phone is required.'),
-  parent2Email: z.string().email('Enter a valid parent 2 email.'),
+  parent2Name: z.string().optional(),
+  parent2Phone: z.string().optional(),
+  parent2Email: z.union([z.string().email(), z.literal('')]).optional(),
   referralSource: z.string().min(1, 'Please tell us how you heard about us.'),
   password: z.string().min(8, 'Password must be at least 8 characters.'),
 });

@@ -41,7 +41,13 @@ export default async function PaymentsPage() {
           <h2 className="text-lg font-semibold text-brand-pink">Choose your payment plan</h2>
           <ul className="divide-y divide-amber-200 rounded-lg border border-amber-300 bg-amber-50">
             {plansAwaitingChoice.map((p) => (
-              <ChoosePlanForm key={p.planId} planId={p.planId} memberName={p.memberName} totalAmount={p.totalAmount} />
+              <ChoosePlanForm
+                key={p.planId}
+                planId={p.planId}
+                memberName={p.memberName}
+                totalAmount={p.totalAmount}
+                canChooseQuarterly={p.canChooseQuarterly}
+              />
             ))}
           </ul>
         </section>

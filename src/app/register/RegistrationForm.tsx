@@ -140,14 +140,14 @@ export function RegistrationForm({
             <Field label="Create a password" htmlFor="password" required hint="At least 8 characters.">
               <input id="password" name="password" type="password" autoComplete="new-password" required minLength={8} className={inputClass} />
             </Field>
-            <Field label="Parent 2 name" htmlFor="parent2Name" required>
-              <input id="parent2Name" name="parent2Name" required className={inputClass} />
+            <Field label="Parent 2 name" htmlFor="parent2Name">
+              <input id="parent2Name" name="parent2Name" className={inputClass} />
             </Field>
-            <Field label="Parent 2 phone" htmlFor="parent2Phone" required>
-              <input id="parent2Phone" name="parent2Phone" required className={inputClass} />
+            <Field label="Parent 2 phone" htmlFor="parent2Phone">
+              <input id="parent2Phone" name="parent2Phone" className={inputClass} />
             </Field>
-            <Field label="Parent 2 email" htmlFor="parent2Email" required>
-              <input id="parent2Email" name="parent2Email" type="email" required className={inputClass} />
+            <Field label="Parent 2 email" htmlFor="parent2Email">
+              <input id="parent2Email" name="parent2Email" type="email" className={inputClass} />
             </Field>
             <Field label="How did you hear about us?" htmlFor="referralSource" required>
               <select id="referralSource" name="referralSource" required className={inputClass} defaultValue="">
