@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
   const { data: intent } = await admin
     .from('payment_intents')
-    .select('id, family_member_id, payment_plan_id, category, amount, status, save_card')
+    .select('id, family_member_id, payment_plan_id, category, amount, status, save_card, helcim_transaction_id')
     .eq('reference', txn.invoiceNumber)
     .maybeSingle();
 
@@ -84,6 +84,16 @@ export async function POST(request: NextRequest) {
   const approved = txn.status.toUpperCase() === 'APPROVED';
 
   if (approved) {
+    // A second, DIFFERENT transaction ID completing for an intent we already
+    // marked completed means Helcim actually processed two separate charges
+    // for the same checkout (e.g. the family double-submitted the payment
+    // form) — not just a webhook retry of the same transaction (which is
+    // idempotent via the unique index below and carries the same id).
+    const isDuplicateCharge =
+      intent.status === 'completed' &&
+      !!intent.helcim_transaction_id &&
+      intent.helcim_transaction_id !== txn.transactionId;
+
     // Idempotent: the unique index on payments.helcim_transaction_id means a
     // webhook retry silently no-ops the second insert.
     await admin
@@ -107,6 +117,15 @@ export async function POST(request: NextRequest) {
     // the merchant contact (Debbie), not the customer, so this is the only
     // thing that actually emails the person who paid.
     await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.transactionId);
+
+    if (isDuplicateCharge) {
+      const dancerName = await dancerNameFor(admin, intent.family_member_id);
+      await sendAdminAlert(`Possible duplicate charge — ${dancerName}`, [
+        `Helcim reported a second successful charge (transaction ${txn.transactionId}) for the same payment attempt as an already-completed one (transaction ${intent.helcim_transaction_id}).`,
+        `Amount: $${Number(txn.amount || intent.amount).toFixed(2)}, reference ${txn.invoiceNumber}.`,
+        `This usually means the family's card was charged twice for one installment (e.g. a double-submit in the payment form). Both charges were recorded here — check Helcim's transaction list and refund the duplicate there if confirmed.`,
+      ]);
+    }
 
     // Capture the stored card and flip auto_charge on only if the family
     // explicitly checked "save card for automatic payments" on this checkout.
