@@ -42,3 +42,7 @@ yarn-error.log*
 
 .vercel
 .env*
+
+# family spreadsheets dropped in the project folder for import — real PII
+# (addresses, birthdays, medical notes), never committed
+*.xlsx
