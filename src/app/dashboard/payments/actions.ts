@@ -11,6 +11,9 @@ import {
   lookupCustomerIdByCode,
   getAchTransaction,
 } from '@/lib/integrations/helcim';
+import { quarterlySchedule, paidInFullSchedule } from '@/lib/billing/tuition';
+import { defaultQuarterlyDueDates, todayIso } from '@/lib/billing/dueDates';
+import type { Json } from '@/lib/types/database';
 
 export interface StartPaymentResult {
   error?: string;
@@ -216,4 +219,51 @@ export async function setAutoCharge(planId: string, enabled: boolean): Promise<v
   const admin = createAdminClient();
   await admin.from('payment_plans').update({ auto_charge: enabled }).eq('id', planId);
   revalidatePath('/dashboard/payments');
+}
+
+export interface ChoosePlanResult {
+  error?: string;
+}
+
+/**
+ * The family's own choice of quarterly vs paid-in-full, for a plan Debbie
+ * approved with just a total price (plan_type 'awaiting_choice', empty
+ * schedule). Computes the actual installment schedule and turns the plan
+ * into a normal 'quarterly'/'paid_in_full' one.
+ */
+export async function chooseFamilyPlan(
+  _prev: ChoosePlanResult,
+  formData: FormData,
+): Promise<ChoosePlanResult> {
+  const planId = String(formData.get('plan_id') ?? '');
+  const choice = String(formData.get('choice') ?? '');
+  if (choice !== 'quarterly' && choice !== 'paid_in_full') return { error: 'Choose a plan.' };
+
+  const supabase = await createClient();
+  // Ownership check (RLS "own plans read") before the admin-client write —
+  // same reasoning as setAutoCharge above.
+  const { data: plan } = await supabase
+    .from('payment_plans')
+    .select('id, plan_type, total_amount')
+    .eq('id', planId)
+    .maybeSingle();
+  if (!plan) return { error: 'Plan not found.' };
+  if (plan.plan_type !== 'awaiting_choice') return { error: 'This plan has already been set up.' };
+
+  const total = Number(plan.total_amount);
+  const today = todayIso();
+  const schedule =
+    choice === 'quarterly'
+      ? quarterlySchedule(total, defaultQuarterlyDueDates(today))
+      : paidInFullSchedule(total, today);
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('payment_plans')
+    .update({ plan_type: choice, installment_schedule: schedule as unknown as Json })
+    .eq('id', planId);
+  if (error) return { error: 'Could not save your choice. Please try again.' };
+
+  revalidatePath('/dashboard/payments');
+  return {};
 }

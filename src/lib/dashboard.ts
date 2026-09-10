@@ -227,6 +227,42 @@ export async function getAutoChargePlans(accountId: string): Promise<AutoChargeP
   return out;
 }
 
+export interface PlanAwaitingChoice {
+  planId: string;
+  memberId: string;
+  memberName: string;
+  totalAmount: number;
+}
+
+/**
+ * Plans Debbie approved with just a total price — the family still needs to
+ * pick quarterly vs paid-in-full before there's an actual schedule to pay
+ * against. See admin/families/actions.ts (approveWithTotalPrice) and
+ * dashboard/payments/actions.ts (chooseFamilyPlan).
+ */
+export async function getPlansAwaitingChoice(accountId: string): Promise<PlanAwaitingChoice[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('family_members')
+    .select('id, first_name, last_name, payment_plans(id, status, plan_type, total_amount)')
+    .eq('family_account_id', accountId);
+
+  const out: PlanAwaitingChoice[] = [];
+  for (const m of (data ?? []) as any[]) {
+    for (const plan of m.payment_plans ?? []) {
+      if (plan.status === 'active' && plan.plan_type === 'awaiting_choice') {
+        out.push({
+          planId: plan.id,
+          memberId: m.id,
+          memberName: `${m.first_name} ${m.last_name}`,
+          totalAmount: Number(plan.total_amount),
+        });
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * Announcements visible to the current family (RLS already filters), capped
  * to the last 30 days — older ones no longer show anywhere in the parent

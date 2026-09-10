@@ -74,7 +74,6 @@ export function RegistrationForm({
 }) {
   const [state, action] = useActionState<RegistrationState, FormData>(registerDancer, {});
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [planType, setPlanType] = useState<'quarterly' | 'paid_in_full'>('quarterly');
   const [agreed, setAgreed] = useState<Set<string>>(new Set());
   const allAgreed = agreed.size === POLICIES.length;
 
@@ -101,8 +100,6 @@ export function RegistrationForm({
     return { tuition: Math.round(total * 100) / 100, hasUnpriced: unpriced };
   }, [selected, allClasses]);
 
-  const installment = Math.round((tuition / 4) * 100) / 100;
-
   function toggleClass(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -127,8 +124,8 @@ export function RegistrationForm({
             <Field label="Parent 1 name" htmlFor="parent1Name" required>
               <input id="parent1Name" name="parent1Name" required className={inputClass} />
             </Field>
-            <Field label="Parent 1 phone" htmlFor="parent1Phone">
-              <input id="parent1Phone" name="parent1Phone" className={inputClass} />
+            <Field label="Parent 1 phone" htmlFor="parent1Phone" required>
+              <input id="parent1Phone" name="parent1Phone" required className={inputClass} />
             </Field>
             <Field label="Parent 1 email" htmlFor="parent1Email" required hint="This is your login.">
               <input
@@ -143,18 +140,20 @@ export function RegistrationForm({
             <Field label="Create a password" htmlFor="password" required hint="At least 8 characters.">
               <input id="password" name="password" type="password" autoComplete="new-password" required minLength={8} className={inputClass} />
             </Field>
-            <Field label="Parent 2 name" htmlFor="parent2Name">
-              <input id="parent2Name" name="parent2Name" className={inputClass} />
+            <Field label="Parent 2 name" htmlFor="parent2Name" required>
+              <input id="parent2Name" name="parent2Name" required className={inputClass} />
             </Field>
-            <Field label="Parent 2 phone" htmlFor="parent2Phone">
-              <input id="parent2Phone" name="parent2Phone" className={inputClass} />
+            <Field label="Parent 2 phone" htmlFor="parent2Phone" required>
+              <input id="parent2Phone" name="parent2Phone" required className={inputClass} />
             </Field>
-            <Field label="Parent 2 email" htmlFor="parent2Email">
-              <input id="parent2Email" name="parent2Email" type="email" className={inputClass} />
+            <Field label="Parent 2 email" htmlFor="parent2Email" required>
+              <input id="parent2Email" name="parent2Email" type="email" required className={inputClass} />
             </Field>
-            <Field label="How did you hear about us?" htmlFor="referralSource">
-              <select id="referralSource" name="referralSource" className={inputClass} defaultValue="">
-                <option value="">Select…</option>
+            <Field label="How did you hear about us?" htmlFor="referralSource" required>
+              <select id="referralSource" name="referralSource" required className={inputClass} defaultValue="">
+                <option value="" disabled>
+                  Select…
+                </option>
                 {REFERRAL_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -176,15 +175,17 @@ export function RegistrationForm({
           <Field label="Last name" htmlFor="lastName" required>
             <input id="lastName" name="lastName" required className={inputClass} />
           </Field>
-          <Field label="Address" htmlFor="address">
-            <input id="address" name="address" className={inputClass} />
+          <Field label="Address" htmlFor="address" required>
+            <input id="address" name="address" required className={inputClass} />
           </Field>
-          <Field label="Birthday" htmlFor="birthday">
-            <input id="birthday" name="birthday" type="date" className={inputClass} />
+          <Field label="Birthday" htmlFor="birthday" required>
+            <input id="birthday" name="birthday" type="date" required className={inputClass} />
           </Field>
-          <Field label="Gender" htmlFor="gender">
-            <select id="gender" name="gender" className={inputClass} defaultValue="">
-              <option value="">Select…</option>
+          <Field label="Gender" htmlFor="gender" required>
+            <select id="gender" name="gender" required className={inputClass} defaultValue="">
+              <option value="" disabled>
+                Select…
+              </option>
               <option value="Female">Female</option>
               <option value="Male">Male</option>
               <option value="Non-binary">Non-binary</option>
@@ -195,19 +196,20 @@ export function RegistrationForm({
         <Field
           label="Medical conditions / medications / allergies"
           htmlFor="medicalNotes"
-          hint="Anything an instructor should know in an emergency."
+          required
+          hint="Anything an instructor should know in an emergency. If none, enter “None”."
         >
-          <textarea id="medicalNotes" name="medicalNotes" rows={3} className={inputClass} />
+          <textarea id="medicalNotes" name="medicalNotes" rows={3} required className={inputClass} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Emergency contact name" htmlFor="emergencyName">
-            <input id="emergencyName" name="emergencyName" className={inputClass} />
+          <Field label="Emergency contact name" htmlFor="emergencyName" required>
+            <input id="emergencyName" name="emergencyName" required className={inputClass} />
           </Field>
-          <Field label="Emergency contact phone" htmlFor="emergencyPhone">
-            <input id="emergencyPhone" name="emergencyPhone" className={inputClass} />
+          <Field label="Emergency contact phone" htmlFor="emergencyPhone" required>
+            <input id="emergencyPhone" name="emergencyPhone" required className={inputClass} />
           </Field>
-          <Field label="Relationship" htmlFor="emergencyRelationship">
-            <input id="emergencyRelationship" name="emergencyRelationship" className={inputClass} />
+          <Field label="Relationship" htmlFor="emergencyRelationship" required>
+            <input id="emergencyRelationship" name="emergencyRelationship" required className={inputClass} />
           </Field>
         </div>
       </section>
@@ -293,39 +295,10 @@ export function RegistrationForm({
             <span className="text-sm text-brand-ink/70">Estimated tuition</span>
             <span className="text-xl font-bold text-brand-pink">{money(tuition)}</span>
           </div>
-          <div className="mt-4 space-y-2">
-            <label className="flex items-start gap-3">
-              <input
-                type="radio"
-                name="planType"
-                value="quarterly"
-                checked={planType === 'quarterly'}
-                onChange={() => setPlanType('quarterly')}
-                className="mt-1 h-4 w-4 accent-brand-pink"
-              />
-              <span>
-                <span className="font-medium">Quarterly</span> — 4 installments of about{' '}
-                {money(installment)}
-              </span>
-            </label>
-            <label className="flex items-start gap-3">
-              <input
-                type="radio"
-                name="planType"
-                value="paid_in_full"
-                checked={planType === 'paid_in_full'}
-                onChange={() => setPlanType('paid_in_full')}
-                className="mt-1 h-4 w-4 accent-brand-pink"
-              />
-              <span>
-                <span className="font-medium">Pay in full</span> — {money(tuition)} once
-              </span>
-            </label>
-          </div>
         </div>
         <p className="text-xs text-brand-ink/60">
-          This is an estimate and your preference — the school confirms your final price and sets
-          up your payment plan after you submit, then emails you to finalize payment.
+          This is an estimate. The school confirms your final price after you submit, then emails
+          you to log in and choose between paying quarterly or in full.
         </p>
       </section>
 

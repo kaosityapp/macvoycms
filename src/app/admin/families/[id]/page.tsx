@@ -9,6 +9,7 @@ import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp, fo
 import { POLICIES } from '@/lib/consents/policies';
 import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
+import { ApproveWithTotalForm } from './ApproveWithTotalForm';
 import { RecordPaymentForm } from './RecordPaymentForm';
 import { RetryInstallmentControls } from './RetryInstallmentControls';
 import { PasswordResetButton } from './PasswordResetButton';
@@ -108,8 +109,8 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
       {d.status === 'pending_pricing' && (
         <div className="rounded-md bg-orange-50 px-4 py-3 text-sm text-orange-900">
           Registered directly — not on the spreadsheet. Waivers and their class spot are already
-          saved below. Set a price using <strong>Create custom payment plan</strong> in Payments —
-          saving it approves this dancer and emails the family to finalize payment.
+          saved below. Set a price using <strong>Approve with a total price</strong> in Payments —
+          saving it approves this dancer and emails the family to log in and choose their plan.
         </div>
       )}
 
@@ -200,6 +201,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
 
         {/* Billing actions */}
         <div className="flex flex-wrap items-start gap-4 border-t border-brand-ink/10 pt-4">
+          {d.status === 'pending_pricing' && <ApproveWithTotalForm memberId={d.id} />}
           <RecordPaymentForm memberId={d.id} />
           <CustomPlanForm memberId={d.id} familyId={family?.id ?? ''} />
           {activePlan && (

@@ -73,23 +73,23 @@ const REFERRAL_VALUES: ReferralSource[] = [
 const memberSchema = z.object({
   firstName: z.string().min(1, 'Dancer first name is required.'),
   lastName: z.string().min(1, 'Dancer last name is required.'),
-  address: z.string().optional(),
-  birthday: z.string().optional(),
-  gender: z.string().optional(),
-  medicalNotes: z.string().optional(),
-  emergencyName: z.string().optional(),
-  emergencyPhone: z.string().optional(),
-  emergencyRelationship: z.string().optional(),
+  address: z.string().min(1, 'Address is required.'),
+  birthday: z.string().min(1, 'Birthday is required.'),
+  gender: z.string().min(1, 'Gender is required.'),
+  medicalNotes: z.string().min(1, 'Medical conditions/medications/allergies is required — enter "None" if not applicable.'),
+  emergencyName: z.string().min(1, 'Emergency contact name is required.'),
+  emergencyPhone: z.string().min(1, 'Emergency contact phone is required.'),
+  emergencyRelationship: z.string().min(1, 'Emergency contact relationship is required.'),
 });
 
 const parentSchema = z.object({
   parent1Name: z.string().min(1, 'Parent name is required.'),
-  parent1Phone: z.string().optional(),
+  parent1Phone: z.string().min(1, 'Parent 1 phone is required.'),
   parent1Email: z.string().email('Enter a valid parent email.'),
-  parent2Name: z.string().optional(),
-  parent2Phone: z.string().optional(),
-  parent2Email: z.union([z.string().email(), z.literal('')]).optional(),
-  referralSource: z.string().optional(),
+  parent2Name: z.string().min(1, 'Parent 2 name is required.'),
+  parent2Phone: z.string().min(1, 'Parent 2 phone is required.'),
+  parent2Email: z.string().email('Enter a valid parent 2 email.'),
+  referralSource: z.string().min(1, 'Please tell us how you heard about us.'),
   password: z.string().min(8, 'Password must be at least 8 characters.'),
 });
 
@@ -129,11 +129,9 @@ export async function registerDancer(
     }
   }
 
-  // --- payment plan choice -------------------------------------------------
-  const planType = s(formData, 'planType');
-  if (planType !== 'quarterly' && planType !== 'paid_in_full') {
-    return { error: 'Choose a payment plan.' };
-  }
+  // Payment plan (quarterly vs paid-in-full) is chosen by the family AFTER
+  // Debbie approves and sets a price — not here, since they don't know the
+  // price yet. See dashboard/payments/ChoosePlanForm.tsx.
 
   // --- account: existing login, or create a new one ------------------------
   const {
@@ -266,8 +264,7 @@ export async function registerDancer(
     `${m.firstName} ${m.lastName} just registered (not on the spreadsheet) and needs a price set before they can pay.`,
     `Parent: ${parentEmail}`,
     `Classes: ${(classNames ?? []).map((c) => c.name).join(', ') || 'none selected'}`,
-    `Requested plan: ${planType === 'quarterly' ? 'Quarterly' : 'Paid in full'}`,
-    `Set their price from the admin Dancers list — approving it will email them to finalize payment.`,
+    `Set their price from the admin Dancers list — approving it will email them to choose quarterly or paid-in-full and finalize payment.`,
   ]);
 
   await sendPlainEmail(parentEmail, `Registration received — ${m.firstName} ${m.lastName}`, [

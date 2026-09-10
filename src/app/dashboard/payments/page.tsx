@@ -1,10 +1,11 @@
 import { getFamilyAccount } from '@/lib/auth';
-import { getUpcomingInstallments, getReceipts, getAutoChargePlans } from '@/lib/dashboard';
+import { getUpcomingInstallments, getReceipts, getAutoChargePlans, getPlansAwaitingChoice } from '@/lib/dashboard';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { todayIso } from '@/lib/billing/dueDates';
 import { money, formatDateLong, formatTimestamp } from '@/lib/format';
 import { PayNowButton } from './PayNowButton';
 import { AutoChargeSection } from './AutoChargeSection';
+import { ChoosePlanForm } from './ChoosePlanForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,10 +16,11 @@ export default async function PaymentsPage() {
   }
 
   const today = todayIso();
-  const [upcoming, receipts, autoChargePlans] = await Promise.all([
+  const [upcoming, receipts, autoChargePlans, plansAwaitingChoice] = await Promise.all([
     getUpcomingInstallments(account.id, today),
     getReceipts(account.id),
     getAutoChargePlans(account.id),
+    getPlansAwaitingChoice(account.id),
   ]);
   const canPayOnline = isHelcimConfigured();
   const upcomingTotal = upcoming.reduce((sum, i) => sum + i.amount, 0);
@@ -32,6 +34,17 @@ export default async function PaymentsPage() {
           Online payment isn&apos;t available yet — the school is finishing setup of its payment
           processor. Your scheduled amounts are shown below for reference.
         </div>
+      )}
+
+      {plansAwaitingChoice.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-brand-pink">Choose your payment plan</h2>
+          <ul className="divide-y divide-amber-200 rounded-lg border border-amber-300 bg-amber-50">
+            {plansAwaitingChoice.map((p) => (
+              <ChoosePlanForm key={p.planId} planId={p.planId} memberName={p.memberName} totalAmount={p.totalAmount} />
+            ))}
+          </ul>
+        </section>
       )}
 
       <AutoChargeSection plans={autoChargePlans} />

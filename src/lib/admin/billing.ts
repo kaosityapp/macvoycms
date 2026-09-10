@@ -36,7 +36,11 @@ export async function recalcDefaultPlanForMember(
     .eq('status', 'active')
     .maybeSingle();
 
-  if (!plan || plan.plan_type === 'custom') return tuition.total;
+  // 'custom' and 'awaiting_choice' are both manually/admin-priced — never
+  // overwritten by the class-formula recompute (awaiting_choice especially:
+  // the family hasn't even picked quarterly/paid-in-full yet, so there's no
+  // schedule shape to recompute into).
+  if (!plan || plan.plan_type === 'custom' || plan.plan_type === 'awaiting_choice') return tuition.total;
 
   const existing = Array.isArray(plan.installment_schedule) ? plan.installment_schedule : [];
   let schedule;
