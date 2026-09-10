@@ -120,7 +120,7 @@ export function AnnouncementComposer({
       <div className="flex items-center gap-3">
         <SubmitButton pendingText="Sending…">Send announcement</SubmitButton>
         <span className="text-xs text-brand-ink/50">
-          Saved to the in-app archive immediately; email goes out once Loops is connected.
+          Saved to the in-app archive and emailed to every family in the selected audience.
         </span>
       </div>
     </form>

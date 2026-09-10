@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { isLoopsConfigured } from '@/lib/integrations/loops';
 import { formatTimestamp } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -19,8 +18,6 @@ export default async function AdminAnnouncementsPage() {
     .select('id, subject, audience_type, sent_at, loops_message_id')
     .order('sent_at', { ascending: false, nullsFirst: false });
 
-  const loopsOn = isLoopsConfigured();
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -33,33 +30,30 @@ export default async function AdminAnnouncementsPage() {
         </Link>
       </div>
 
-      {!loopsOn && (
-        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Announcements are saved and shown in parents&apos; portals immediately. Email delivery and
-          open/click stats activate once Loops is connected.
-        </p>
-      )}
-
       <ul className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
-        {(announcements ?? []).map((a: any) => (
-          <li key={a.id}>
-            <Link
-              href={`/admin/announcements/${a.id}`}
-              className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-brand-pink/5"
-            >
-              <div>
-                <div className="font-medium text-brand-ink">{a.subject}</div>
-                <div className="text-sm text-brand-ink/60">
-                  {AUDIENCE_LABEL[a.audience_type] ?? a.audience_type}
-                  {a.sent_at ? ` · ${formatTimestamp(a.sent_at)}` : ' · draft'}
+        {(announcements ?? []).map((a: any) => {
+          const deliveryLabel =
+            typeof a.loops_message_id === 'string' && a.loops_message_id.startsWith('direct:')
+              ? `Emailed ${a.loops_message_id.slice('direct:'.length)}`
+              : 'In-app only';
+          return (
+            <li key={a.id}>
+              <Link
+                href={`/admin/announcements/${a.id}`}
+                className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-brand-pink/5"
+              >
+                <div>
+                  <div className="font-medium text-brand-ink">{a.subject}</div>
+                  <div className="text-sm text-brand-ink/60">
+                    {AUDIENCE_LABEL[a.audience_type] ?? a.audience_type}
+                    {a.sent_at ? ` · ${formatTimestamp(a.sent_at)}` : ' · draft'}
+                  </div>
                 </div>
-              </div>
-              <div className="whitespace-nowrap text-sm text-brand-ink/50">
-                {loopsOn ? (a.loops_message_id ? 'Email sent' : 'In-app only') : 'Stats pending Loops'}
-              </div>
-            </Link>
-          </li>
-        ))}
+                <div className="whitespace-nowrap text-sm text-brand-ink/50">{deliveryLabel}</div>
+              </Link>
+            </li>
+          );
+        })}
         {(announcements ?? []).length === 0 && (
           <li className="px-5 py-6 text-brand-ink/60">No announcements yet.</li>
         )}

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isHelcimConfigured, getAchTransaction } from '@/lib/integrations/helcim';
+import { isHelcimConfigured, getAchTransaction, findCardTransactionByInvoice } from '@/lib/integrations/helcim';
 import {
   findDueInstallment,
   attemptInstallmentCharge,
@@ -134,8 +134,91 @@ export async function GET(request: NextRequest) {
   }
 
   const achResults = await checkAchSettlements(admin);
+  const cardReconciliation = await checkCardReconciliation(admin);
 
-  return NextResponse.json({ ok: true, checked: (plans ?? []).length, results, achResults });
+  return NextResponse.json({ ok: true, checked: (plans ?? []).length, results, achResults, cardReconciliation });
+}
+
+/**
+ * Backstop for card payments: the webhook is normally the sole writer of
+ * `payments`, but if it's ever missed (misconfigured secret, endpoint
+ * briefly down, Helcim's retries exhausted before it recovers), a
+ * successfully-charged card would otherwise sit stuck at 'pending' forever
+ * — never recorded, no receipt, and blocked from ever being retried since
+ * an in-flight intent blocks re-attempting that installment. This searches
+ * Helcim directly by invoiceNumber (our reference) for any card intent
+ * still unresolved after 30 minutes (long enough that a normal webhook
+ * would already have arrived) and reconciles it. Anything found this way
+ * also triggers an admin alert — it means the webhook itself needs
+ * investigating, not just this one payment.
+ */
+async function checkCardReconciliation(admin: AdminClient): Promise<{ id: string; outcome: string }[]> {
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const expireCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: stale } = await admin
+    .from('payment_intents')
+    .select('id, family_member_id, payment_plan_id, installment_index, amount, category, reference, created_at')
+    .in('status', ['pending', 'client_confirmed'])
+    .is('bank_token', null) // card intents only — ACH uses 'settling', handled above
+    .lte('created_at', cutoff);
+
+  const out: { id: string; outcome: string }[] = [];
+  for (const intent of stale ?? []) {
+    let txn;
+    try {
+      txn = await findCardTransactionByInvoice(intent.reference);
+    } catch (err) {
+      out.push({ id: intent.id, outcome: `lookup failed: ${(err as Error).message}` });
+      continue;
+    }
+
+    if (!txn) {
+      // Never reached Helcim at all (checkout abandoned) — stop checking
+      // after 24h so it doesn't get polled forever.
+      if (intent.created_at <= expireCutoff) {
+        await admin.from('payment_intents').update({ status: 'expired' }).eq('id', intent.id);
+        out.push({ id: intent.id, outcome: 'expired — never completed at Helcim' });
+      } else {
+        out.push({ id: intent.id, outcome: 'not found yet' });
+      }
+      continue;
+    }
+
+    const dancerName = await dancerNameFor(admin, intent.family_member_id);
+
+    if (txn.status.toUpperCase() === 'APPROVED') {
+      await admin
+        .from('payments')
+        .insert({
+          family_member_id: intent.family_member_id,
+          payment_plan_id: intent.payment_plan_id,
+          amount: txn.amount || intent.amount,
+          category: intent.category,
+          paid_at: new Date().toISOString(),
+          helcim_transaction_id: txn.transactionId,
+        })
+        .then(() => {}, () => {}); // idempotent — ignore unique-violation on a re-poll
+      await admin
+        .from('payment_intents')
+        .update({ status: 'completed', helcim_transaction_id: txn.transactionId })
+        .eq('id', intent.id);
+      await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.transactionId);
+      await sendAdminAlert(`Missed webhook recovered — ${dancerName}`, [
+        `${dancerName}'s payment of ${money(Number(txn.amount || intent.amount))} was actually approved at Helcim, but our webhook never recorded it — recovered by the daily reconciliation check instead.`,
+        `Worth checking the Helcim webhook is still correctly configured (Deliver URL https://hooks.macvoyirishdance.com, event Card Transactions) if this keeps happening.`,
+      ]);
+      out.push({ id: intent.id, outcome: 'recovered — payment recorded, admin alerted' });
+    } else {
+      await admin
+        .from('payment_intents')
+        .update({ status: 'failed', helcim_transaction_id: txn.transactionId })
+        .eq('id', intent.id);
+      out.push({ id: intent.id, outcome: `recovered — declined (${txn.status})` });
+    }
+  }
+
+  return out;
 }
 
 /**

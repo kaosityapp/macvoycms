@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { isLoopsConfigured, sendAnnouncement as loopsSend } from '@/lib/integrations/loops';
+import { sendPlainEmail } from '@/lib/integrations/adminAlert';
 import type { AudienceType, Json } from '@/lib/types/database';
 import { sanitizeHtml } from '@/lib/sanitize';
 
@@ -84,25 +84,29 @@ export async function sendAnnouncement(_prev: ActionState, formData: FormData): 
     .single();
   if (error || !announcement) return { error: 'Could not save the announcement.' };
 
-  // Dispatch email only once Loops is connected; the in-app archive already
-  // reflects the announcement above regardless.
-  if (isLoopsConfigured()) {
-    try {
-      const recipients = await resolveRecipientEmails(supabase, audienceType, audienceRef);
-      if (recipients.length > 0) {
-        const result = await loopsSend({
-          to: recipients,
-          subject: parsed.data.subject,
-          body: parsed.data.body,
-        });
-        await supabase
-          .from('announcements')
-          .update({ loops_message_id: result.loopsMessageId })
-          .eq('id', announcement.id);
+  // Email every relevant family directly (Resend) — the in-app archive above
+  // is already the source of truth regardless of whether these sends
+  // succeed. Sent one-by-one (not one email with everyone in "To") so
+  // families never see each other's addresses.
+  try {
+    const recipients = await resolveRecipientEmails(supabase, audienceType, audienceRef);
+    let sent = 0;
+    for (const email of recipients) {
+      try {
+        await sendPlainEmail(email, parsed.data.subject, [parsed.data.body]);
+        sent += 1;
+      } catch {
+        // Continue sending to the rest — one bad address shouldn't block the batch.
       }
-    } catch {
-      // Non-fatal: the in-app announcement is already saved.
     }
+    if (recipients.length > 0) {
+      await supabase
+        .from('announcements')
+        .update({ loops_message_id: `direct:${sent}/${recipients.length}` })
+        .eq('id', announcement.id);
+    }
+  } catch {
+    // Non-fatal: the in-app announcement is already saved.
   }
 
   redirect('/admin/announcements');

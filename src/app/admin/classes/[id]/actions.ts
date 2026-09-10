@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { recalcMembersOfClass } from '@/lib/admin/billing';
 import { todayIso } from '@/lib/billing/dueDates';
+import { sendPlainEmail } from '@/lib/integrations/adminAlert';
+import { formatDateLong, formatTime } from '@/lib/format';
 
 export interface ActionState {
   error?: string;
@@ -62,6 +64,34 @@ export async function updateClass(_prev: ActionState, formData: FormData): Promi
   return { success: 'Class updated. Enrolled dancers’ tuition has been recalculated.' };
 }
 
+/** Email every family with an active enrollment in this class. */
+async function notifyEnrolledFamilies(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  classId: string,
+  subject: string,
+  bodyLines: string[],
+): Promise<void> {
+  const { data } = await supabase
+    .from('enrollments')
+    .select('family_members(family:family_accounts(parent1_email))')
+    .eq('class_id', classId)
+    .eq('status', 'active');
+
+  const emails = [
+    ...new Set(
+      ((data ?? []) as any[]).map((r) => r.family_members?.family?.parent1_email).filter(Boolean),
+    ),
+  ] as string[];
+
+  for (const email of emails) {
+    try {
+      await sendPlainEmail(email, subject, bodyLines);
+    } catch {
+      // Continue notifying the rest — one bad address shouldn't block the batch.
+    }
+  }
+}
+
 export async function updateSession(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const sessionId = String(formData.get('session_id') ?? '');
   const classId = String(formData.get('class_id') ?? '');
@@ -78,12 +108,45 @@ export async function updateSession(_prev: ActionState, formData: FormData): Pro
   }
 
   const supabase = await createClient();
+
+  // Fetch the current state first so we can tell what actually changed
+  // (and have the original date/time/class name on hand for the email).
+  const { data: before } = await supabase
+    .from('class_sessions')
+    .select('status, session_date, start_time, class:classes(name, location:locations(name))')
+    .eq('id', sessionId)
+    .maybeSingle();
+
   const { error } = await supabase.from('class_sessions').update(update).eq('id', sessionId);
   if (error) {
     if ((error as { code?: string }).code === '23505') {
       return { error: 'That date already has a class for this session.' };
     }
     return { error: 'Could not update the session.' };
+  }
+
+  if (before && classId) {
+    const className = (before as any).class?.name ?? 'Class';
+    const locationName = (before as any).class?.location?.name ?? '';
+    const oldWhen = `${formatDateLong(before.session_date)} at ${formatTime(before.start_time)}`;
+
+    if (before.status !== 'cancelled' && status === 'cancelled') {
+      await notifyEnrolledFamilies(supabase, classId, `Class cancelled — ${className}`, [
+        `${className}${locationName ? ` (${locationName})` : ''} on ${oldWhen} has been cancelled.`,
+        ...(note ? [`Note: ${note}`] : []),
+      ]);
+    } else if (before.status === 'cancelled' && status !== 'cancelled') {
+      const newWhen = update.session_date ? `${formatDateLong(update.session_date)} at ${formatTime(before.start_time)}` : oldWhen;
+      await notifyEnrolledFamilies(supabase, classId, `Class back on — ${className}`, [
+        `Good news — ${className}${locationName ? ` (${locationName})` : ''} on ${newWhen} is back on after all.`,
+        ...(note ? [`Note: ${note}`] : []),
+      ]);
+    } else if (status === 'rescheduled' && update.session_date && update.session_date !== before.session_date) {
+      await notifyEnrolledFamilies(supabase, classId, `Class moved — ${className}`, [
+        `${className}${locationName ? ` (${locationName})` : ''} has moved from ${oldWhen} to ${formatDateLong(update.session_date)} at ${formatTime(before.start_time)}.`,
+        ...(note ? [`Note: ${note}`] : []),
+      ]);
+    }
   }
 
   if (classId) revalidatePath(`/admin/classes/${classId}`);

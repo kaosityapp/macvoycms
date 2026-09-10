@@ -221,6 +221,29 @@ export async function getCardTransaction(id: string): Promise<CardTransaction> {
   };
 }
 
+/**
+ * Search for a card transaction by our invoiceNumber (reference) — used by
+ * the reconciliation poller to find a transaction the webhook never
+ * reported (e.g. HELCIM_WEBHOOK_SECRET misconfigured, endpoint briefly
+ * down, webhook retries exhausted). Returns null if nothing matches yet.
+ */
+export async function findCardTransactionByInvoice(invoiceNumber: string): Promise<CardTransaction | null> {
+  const data = await helcimFetch(`/card-transactions?invoiceNumber=${encodeURIComponent(invoiceNumber)}`, {
+    method: 'GET',
+  });
+  const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+  const match = list[0];
+  if (!match) return null;
+  return {
+    transactionId: String(match.transactionId ?? ''),
+    status: String(match.status ?? ''),
+    amount: Number(match.amount ?? 0),
+    invoiceNumber: match.invoiceNumber ? String(match.invoiceNumber) : undefined,
+    cardToken: match.cardToken ? String(match.cardToken) : undefined,
+    customerCode: match.customerCode ? String(match.customerCode) : undefined,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Recurring bank (ACH/EFT) payments.
 //

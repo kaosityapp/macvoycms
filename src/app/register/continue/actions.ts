@@ -7,7 +7,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { POLICIES } from '@/lib/consents/policies';
 import { getAddon } from '@/lib/constants/addons';
-import { isLoopsConfigured, sendTransactional } from '@/lib/integrations/loops';
+import { sendPlainEmail } from '@/lib/integrations/adminAlert';
+import { money } from '@/lib/format';
 import type { Json } from '@/lib/types/database';
 
 export interface CompleteRegistrationState {
@@ -207,16 +208,16 @@ export async function completePendingRegistration(
     .update({ status: 'completed', completed_at: new Date().toISOString() })
     .eq('id', pending.id);
 
-  if (isLoopsConfigured() && user.email) {
+  if (user.email) {
     try {
       const dancerNames = originalDancers
         .map((_, i) => `${s(formData, `firstName_${i}`)} ${s(formData, `lastName_${i}`)}`)
         .join(', ');
-      await sendTransactional({
-        to: user.email,
-        transactionalId: 'registration_confirmation',
-        dataVariables: { dancer: dancerNames, total: originalDancers.reduce((sum, d) => sum + (d.total_amount || 0), 0) },
-      });
+      const total = originalDancers.reduce((sum, d) => sum + (d.total_amount || 0), 0);
+      await sendPlainEmail(user.email, 'Registration confirmed — MacVoy School of Irish Dance', [
+        `Thanks for confirming your registration for ${dancerNames}!`,
+        `Total tuition: ${money(total)} — see your dashboard for the full payment schedule and to make a payment: https://www.macvoyirishdance.com/dashboard`,
+      ]);
     } catch {
       // Non-fatal: registration succeeds even if the email fails.
     }
