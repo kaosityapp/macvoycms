@@ -11,9 +11,6 @@ import {
   lookupCustomerIdByCode,
   getAchTransaction,
 } from '@/lib/integrations/helcim';
-import { monthlySchedule, paidInFullSchedule } from '@/lib/billing/tuition';
-import { defaultMonthlyDueDates, todayIso } from '@/lib/billing/dueDates';
-import type { Json } from '@/lib/types/database';
 
 export interface StartPaymentResult {
   error?: string;
@@ -219,64 +216,4 @@ export async function setAutoCharge(planId: string, enabled: boolean): Promise<v
   const admin = createAdminClient();
   await admin.from('payment_plans').update({ auto_charge: enabled }).eq('id', planId);
   revalidatePath('/dashboard/payments');
-}
-
-export interface ChoosePlanResult {
-  error?: string;
-}
-
-/**
- * The family's own choice of monthly payments vs paid-in-full for the Fall
- * session, for a plan Debbie approved with just a total price (plan_type
- * 'awaiting_choice', empty schedule). Computes the actual installment
- * schedule and turns the plan into a normal 'monthly'/'paid_in_full' one.
- */
-export async function chooseFamilyPlan(
-  _prev: ChoosePlanResult,
-  formData: FormData,
-): Promise<ChoosePlanResult> {
-  const planId = String(formData.get('plan_id') ?? '');
-  const choice = String(formData.get('choice') ?? '');
-  if (choice !== 'monthly' && choice !== 'paid_in_full') return { error: 'Choose a plan.' };
-
-  const supabase = await createClient();
-  // Ownership check (RLS "own plans read") before the admin-client write —
-  // same reasoning as setAutoCharge above.
-  const { data: plan } = await supabase
-    .from('payment_plans')
-    .select('id, plan_type, total_amount, family_member_id')
-    .eq('id', planId)
-    .maybeSingle();
-  if (!plan) return { error: 'Plan not found.' };
-  if (plan.plan_type !== 'awaiting_choice') return { error: 'This plan has already been set up.' };
-
-  // Monthly payments are only offered at 2+ weekly classes — re-checked here
-  // since a client can't be trusted to enforce this itself.
-  if (choice === 'monthly') {
-    const { count } = await supabase
-      .from('enrollments')
-      .select('id', { count: 'exact', head: true })
-      .eq('family_member_id', plan.family_member_id)
-      .eq('status', 'active');
-    if ((count ?? 0) < 2) {
-      return { error: 'Monthly payments are only available with 2 or more weekly classes — please pay in full.' };
-    }
-  }
-
-  const total = Number(plan.total_amount);
-  const today = todayIso();
-  const schedule =
-    choice === 'monthly'
-      ? monthlySchedule(total, defaultMonthlyDueDates(today))
-      : paidInFullSchedule(total, today);
-
-  const admin = createAdminClient();
-  const { error } = await admin
-    .from('payment_plans')
-    .update({ plan_type: choice, installment_schedule: schedule as unknown as Json })
-    .eq('id', planId);
-  if (error) return { error: 'Could not save your choice. Please try again.' };
-
-  revalidatePath('/dashboard/payments');
-  return {};
 }

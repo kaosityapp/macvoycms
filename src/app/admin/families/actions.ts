@@ -160,68 +160,6 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
   return { success: approved ? 'Plan created — dancer approved and family notified.' : 'Custom plan created.' };
 }
 
-/**
- * Approve a pending-pricing dancer with just a Fall Sessions total price,
- * letting the FAMILY choose monthly payments vs paid-in-full afterward
- * (rather than Debbie building the exact installment schedule herself) — the
- * plan_type 'awaiting_choice' with an empty schedule signals this on the
- * dashboard (see dashboard/payments/ChoosePlanForm.tsx). Prefer this over
- * createCustomPlan for the normal pending_pricing approval; that form is
- * still there for when Debbie genuinely needs a non-standard schedule.
- */
-export async function approveWithTotalPrice(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const memberId = String(formData.get('member_id') ?? '');
-  if (!memberId) return { error: 'Missing dancer.' };
-
-  const total = Number(formData.get('total_amount'));
-  if (!Number.isFinite(total) || total <= 0) return { error: 'Enter a valid total price.' };
-
-  const supabase = await createClient();
-  await supabase
-    .from('payment_plans')
-    .update({ status: 'stopped' })
-    .eq('family_member_id', memberId)
-    .eq('status', 'active');
-
-  const { error } = await supabase.from('payment_plans').insert({
-    family_member_id: memberId,
-    plan_type: 'awaiting_choice',
-    total_amount: total,
-    installment_schedule: [],
-    status: 'active',
-  });
-  if (error) return { error: 'Could not create the plan.' };
-
-  const { data: dancer } = await supabase
-    .from('family_members')
-    .select('status, first_name, last_name, family:family_accounts(parent1_email)')
-    .eq('id', memberId)
-    .maybeSingle();
-  let approved = false;
-  if (dancer?.status === 'pending_pricing') {
-    await supabase.from('family_members').update({ status: 'active' }).eq('id', memberId);
-    const parentEmail = (dancer as any).family?.parent1_email;
-    if (parentEmail) {
-      await sendPlainEmail(
-        parentEmail,
-        `${dancer.first_name}'s registration is approved — MacVoy School of Irish Dance`,
-        [
-          `Good news — ${dancer.first_name} ${dancer.last_name}'s registration has been approved for the Fall Sessions, priced at ${money(total)}.`,
-          `Log in to your account to choose between monthly payments or paying in full, and finalize payment: https://www.macvoyirishdance.com/dashboard/payments`,
-        ],
-      );
-    }
-    approved = true;
-  }
-
-  revalidateDancer(memberId);
-  return {
-    success: approved
-      ? `Priced at ${money(total)} — dancer approved, family notified to choose their plan.`
-      : `Priced at ${money(total)} — family can now choose their plan.`,
-  };
-}
-
 const PAYMENT_METHODS = new Set(['cash', 'e-transfer', 'cheque', 'other']);
 
 /** Record a payment Debbie received outside Helcim (cash, e-transfer, cheque). */

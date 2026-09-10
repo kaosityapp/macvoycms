@@ -9,7 +9,6 @@ import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp, fo
 import { POLICIES } from '@/lib/consents/policies';
 import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
-import { ApproveWithTotalForm } from './ApproveWithTotalForm';
 import { EditAddonForm } from './EditAddonForm';
 import { RecordPaymentForm } from './RecordPaymentForm';
 import { RetryInstallmentControls } from './RetryInstallmentControls';
@@ -203,9 +202,8 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
 
         {/* Billing actions */}
         <div className="flex flex-wrap items-start gap-4 border-t border-brand-ink/10 pt-4">
-          {d.status === 'pending_pricing' && <ApproveWithTotalForm memberId={d.id} />}
           <RecordPaymentForm memberId={d.id} />
-          <CustomPlanForm memberId={d.id} familyId={family?.id ?? ''} />
+          <CustomPlanForm memberId={d.id} familyId={family?.id ?? ''} defaultOpen={d.status === 'pending_pricing'} />
           {activePlan && (
             <details className="rounded-md border border-red-200 p-3">
               <summary className="cursor-pointer text-sm font-medium text-red-700">Stop billing</summary>

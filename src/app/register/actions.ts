@@ -141,9 +141,9 @@ export async function registerDancer(
     }
   }
 
-  // Payment plan (monthly vs paid-in-full, for the Fall Sessions) is chosen
-  // by the family AFTER Debbie approves and sets a price — not here, since
-  // they don't know the price yet. See dashboard/payments/ChoosePlanForm.tsx.
+  // Payment plan (Fall Sessions schedule) is set by Debbie after she reviews
+  // and prices this registration — not here, since neither of us knows the
+  // price yet. See admin/families/[id]/CustomPlanForm.tsx.
 
   // --- account: existing login, or create a new one ------------------------
   const {
@@ -329,7 +329,7 @@ export async function registerDancer(
     `${m.firstName} ${m.lastName} just registered (not on the spreadsheet) and needs a price set before they can pay.`,
     `Parent: ${parentEmail}`,
     `Classes: ${(classNames ?? []).map((c) => c.name).join(', ') || 'none selected'}`,
-    `Set their Fall Sessions price from the admin Dancers list — approving it will email them to choose monthly payments or paid-in-full and finalize payment.`,
+    `Set their Fall Sessions payment schedule from the admin Dancers list — creating it will email them to finalize payment.`,
   ]);
 
   await sendPlainEmail(parentEmail, `Registration received — ${m.firstName} ${m.lastName}`, [

@@ -1,13 +1,23 @@
 import { getFamilyAccount } from '@/lib/auth';
-import { getUpcomingInstallments, getReceipts, getAutoChargePlans, getPlansAwaitingChoice } from '@/lib/dashboard';
+import {
+  getUpcomingInstallments,
+  getReceipts,
+  getAutoChargePlans,
+  getActivePlanBreakdowns,
+} from '@/lib/dashboard';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { todayIso } from '@/lib/billing/dueDates';
-import { money, formatDateLong, formatTimestamp } from '@/lib/format';
+import { money, formatDateLong, formatTime, formatTimestamp } from '@/lib/format';
 import { PayNowButton } from './PayNowButton';
 import { AutoChargeSection } from './AutoChargeSection';
-import { ChoosePlanForm } from './ChoosePlanForm';
 
 export const dynamic = 'force-dynamic';
+
+const PLAN_TYPE_LABEL: Record<string, string> = {
+  monthly: 'Monthly',
+  paid_in_full: 'Paid in full',
+  custom: 'Custom plan',
+};
 
 export default async function PaymentsPage() {
   const account = await getFamilyAccount();
@@ -16,14 +26,15 @@ export default async function PaymentsPage() {
   }
 
   const today = todayIso();
-  const [upcoming, receipts, autoChargePlans, plansAwaitingChoice] = await Promise.all([
+  const [upcoming, receipts, autoChargePlans, planBreakdowns] = await Promise.all([
     getUpcomingInstallments(account.id, today),
     getReceipts(account.id),
     getAutoChargePlans(account.id),
-    getPlansAwaitingChoice(account.id),
+    getActivePlanBreakdowns(account.id),
   ]);
   const canPayOnline = isHelcimConfigured();
   const upcomingTotal = upcoming.reduce((sum, i) => sum + i.amount, 0);
+  const autoChargeOn = autoChargePlans.length > 0;
 
   return (
     <div className="space-y-8">
@@ -36,20 +47,50 @@ export default async function PaymentsPage() {
         </div>
       )}
 
-      {plansAwaitingChoice.length > 0 && (
+      {/* What you're paying for */}
+      {planBreakdowns.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-brand-pink">Choose your payment plan</h2>
-          <ul className="divide-y divide-amber-200 rounded-lg border border-amber-300 bg-amber-50">
-            {plansAwaitingChoice.map((p) => (
-              <ChoosePlanForm
-                key={p.planId}
-                planId={p.planId}
-                memberName={p.memberName}
-                totalAmount={p.totalAmount}
-                canPayMonthly={p.canPayMonthly}
-                classes={p.classes}
-                addons={p.addons}
-              />
+          <h2 className="text-lg font-semibold text-brand-pink">What you&apos;re paying for</h2>
+          <ul className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
+            {planBreakdowns.map((p) => (
+              <li key={p.planId} className="space-y-2 px-5 py-4">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium text-brand-ink">{p.memberName}</span>
+                  <span className="text-sm text-brand-ink/60">
+                    {PLAN_TYPE_LABEL[p.planType] ?? 'Custom plan'}
+                  </span>
+                </div>
+                {p.classes.length > 0 && (
+                  <div className="space-y-1 text-sm">
+                    {p.classes.map((c, i) => (
+                      <div key={i} className="text-brand-ink/70">
+                        {c.name}
+                        <span className="text-brand-ink/50">
+                          {' '}
+                          — {c.dayOfWeek} {formatTime(c.startTime)}–{formatTime(c.endTime)}
+                          {c.locationName ? ` · ${c.locationName}` : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {p.addons.length > 0 && (
+                  <div className="space-y-1 text-sm">
+                    {p.addons.map((a, i) => (
+                      <div key={i} className="flex items-baseline justify-between gap-3 text-brand-ink/70">
+                        <span>{a.label}</span>
+                        <span>{money(a.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-baseline justify-between border-t border-brand-ink/10 pt-2">
+                  <span className="text-sm font-semibold text-brand-ink">
+                    Fall Sessions total (HST included)
+                  </span>
+                  <span className="font-bold text-brand-pink">{money(p.totalAmount)}</span>
+                </div>
+              </li>
             ))}
           </ul>
         </section>
@@ -65,6 +106,12 @@ export default async function PaymentsPage() {
             <span className="text-sm text-brand-ink/60">{money(upcomingTotal)} scheduled</span>
           )}
         </div>
+        {upcoming.length > 0 && !autoChargeOn && (
+          <p className="text-xs text-brand-ink/50">
+            Paying an installment below saves your card on file, and future installments are then
+            charged automatically on their due date. You can turn that off anytime once it&apos;s on.
+          </p>
+        )}
 
         {upcoming.length === 0 ? (
           <p className="rounded-lg border border-brand-ink/10 bg-white p-6 text-brand-ink/70">
@@ -78,7 +125,7 @@ export default async function PaymentsPage() {
                   <div className="font-medium text-brand-ink">{money(item.amount)}</div>
                   <div className="text-sm text-brand-ink/60">
                     Due {formatDateLong(item.date)} · {item.memberName} ·{' '}
-                    {item.planType === 'monthly' ? 'Monthly' : 'Paid in full'}
+                    {PLAN_TYPE_LABEL[item.planType] ?? 'Custom plan'}
                   </div>
                 </div>
                 {canPayOnline ? (

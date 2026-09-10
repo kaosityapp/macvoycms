@@ -228,7 +228,7 @@ export async function getAutoChargePlans(accountId: string): Promise<AutoChargeP
   return out;
 }
 
-export interface PlanAwaitingChoiceClass {
+export interface PlanBreakdownClass {
   name: string;
   dayOfWeek: string;
   startTime: string;
@@ -236,29 +236,27 @@ export interface PlanAwaitingChoiceClass {
   locationName: string;
 }
 
-export interface PlanAwaitingChoiceAddon {
+export interface PlanBreakdownAddon {
   label: string;
   amount: number;
 }
 
-export interface PlanAwaitingChoice {
+export interface ActivePlanBreakdown {
   planId: string;
   memberId: string;
   memberName: string;
+  planType: string;
   totalAmount: number;
-  /** Monthly payments are only offered at 2+ weekly classes — 1 class must be paid in full. */
-  canPayMonthly: boolean;
-  classes: PlanAwaitingChoiceClass[];
-  addons: PlanAwaitingChoiceAddon[];
+  classes: PlanBreakdownClass[];
+  addons: PlanBreakdownAddon[];
 }
 
 /**
- * Plans Debbie approved with just a total price (for the Fall session) — the
- * family still needs to pick monthly payments vs paid-in-full before there's
- * an actual schedule to pay against. See admin/families/actions.ts
- * (approveWithTotalPrice) and dashboard/payments/actions.ts (chooseFamilyPlan).
+ * The Fall Sessions breakdown (classes + add-ons + total) for every dancer
+ * with an active plan — a persistent "what you're paying for" reference on
+ * the family's Payments page.
  */
-export async function getPlansAwaitingChoice(accountId: string): Promise<PlanAwaitingChoice[]> {
+export async function getActivePlanBreakdowns(accountId: string): Promise<ActivePlanBreakdown[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('family_members')
@@ -270,30 +268,32 @@ export async function getPlansAwaitingChoice(accountId: string): Promise<PlanAwa
     )
     .eq('family_account_id', accountId);
 
-  const out: PlanAwaitingChoice[] = [];
+  const out: ActivePlanBreakdown[] = [];
   for (const m of (data ?? []) as any[]) {
     for (const plan of m.payment_plans ?? []) {
-      if (plan.status === 'active' && plan.plan_type === 'awaiting_choice') {
-        const activeEnrollments = (m.enrollments ?? []).filter((e: any) => e.status === 'active' && e.class);
-        out.push({
-          planId: plan.id,
-          memberId: m.id,
-          memberName: `${m.first_name} ${m.last_name}`,
-          totalAmount: Number(plan.total_amount),
-          canPayMonthly: activeEnrollments.length >= 2,
-          classes: activeEnrollments.map((e: any) => ({
-            name: e.class.name,
-            dayOfWeek: e.class.day_of_week,
-            startTime: e.class.start_time,
-            endTime: e.class.end_time,
-            locationName: e.class.location?.name ?? '',
-          })),
-          addons: (m.order_items ?? []).map((item: any) => ({
-            label: getAddon(item.item_type)?.label ?? item.item_type,
-            amount: Number(item.amount),
-          })),
-        });
-      }
+      if (plan.status !== 'active') continue;
+      const classes: PlanBreakdownClass[] = (m.enrollments ?? [])
+        .filter((e: any) => e.status === 'active' && e.class)
+        .map((e: any) => ({
+          name: e.class.name,
+          dayOfWeek: e.class.day_of_week,
+          startTime: e.class.start_time,
+          endTime: e.class.end_time,
+          locationName: e.class.location?.name ?? '',
+        }));
+      const addons: PlanBreakdownAddon[] = (m.order_items ?? []).map((item: any) => ({
+        label: getAddon(item.item_type)?.label ?? item.item_type,
+        amount: Number(item.amount),
+      }));
+      out.push({
+        planId: plan.id,
+        memberId: m.id,
+        memberName: `${m.first_name} ${m.last_name}`,
+        planType: plan.plan_type,
+        totalAmount: Number(plan.total_amount),
+        classes,
+        addons,
+      });
     }
   }
   return out;
