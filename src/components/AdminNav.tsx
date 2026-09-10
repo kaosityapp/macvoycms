@@ -9,6 +9,7 @@ const TABS = [
   { href: '/admin/families', label: 'Dancers' },
   { href: '/admin/announcements', label: 'Announcements' },
   { href: '/admin/payments', label: 'Payments' },
+  { href: '/admin/contact', label: 'Contact Messages' },
 ];
 
 export function AdminNav() {

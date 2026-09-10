@@ -271,6 +271,36 @@ export type Database = {
           },
         ]
       }
+      contact_messages: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          location: string
+          message: string
+          name: string
+          read_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          location: string
+          message: string
+          name: string
+          read_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          location?: string
+          message?: string
+          name?: string
+          read_at?: string | null
+        }
+        Relationships: []
+      }
       enrollments: {
         Row: {
           class_id: string

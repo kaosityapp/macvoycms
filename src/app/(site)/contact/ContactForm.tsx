@@ -29,6 +29,15 @@ export function ContactForm() {
       <Field label="Email" htmlFor="contact-email" required>
         <input id="contact-email" name="email" type="email" required className={inputClass} />
       </Field>
+      <Field label="Location" htmlFor="contact-location" required>
+        <select id="contact-location" name="location" required defaultValue="" className={inputClass}>
+          <option value="" disabled>
+            Select a location…
+          </option>
+          <option value="Mississauga">Mississauga</option>
+          <option value="Pickering">Pickering</option>
+        </select>
+      </Field>
       <Field label="Message" htmlFor="contact-message" required>
         <textarea id="contact-message" name="message" required rows={5} className={inputClass} />
       </Field>
