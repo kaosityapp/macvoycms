@@ -48,7 +48,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
   const { data: dancer } = await supabase
     .from('family_members')
     .select(
-      `id, first_name, last_name, status, address, birthday, gender, medical_notes,
+      `id, first_name, last_name, status, address, city, province, postal_code, phone_number, phone_type, birthday, gender, medical_notes,
        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, created_at,
        family:family_accounts(id, parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(id, status, class:classes(id, name, day_of_week, start_time, end_time, is_private, location:locations(name))),
@@ -245,6 +245,11 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
             birthday: d.birthday,
             gender: d.gender,
             address: d.address,
+            city: d.city,
+            province: d.province,
+            postal_code: d.postal_code,
+            phone_number: d.phone_number,
+            phone_type: d.phone_type,
             medical_notes: d.medical_notes,
             emergency_contact_name: d.emergency_contact_name,
             emergency_contact_phone: d.emergency_contact_phone,

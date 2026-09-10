@@ -13,6 +13,11 @@ interface Props {
     birthday: string | null;
     gender: string | null;
     address: string | null;
+    city: string | null;
+    province: string | null;
+    postal_code: string | null;
+    phone_number: string | null;
+    phone_type: string | null;
     medical_notes: string | null;
     emergency_contact_name: string | null;
     emergency_contact_phone: string | null;
@@ -60,6 +65,29 @@ export function EditRegistrationForm({ memberId, familyId, dancer, family }: Pro
           <Field label="Address" htmlFor="address">
             <input id="address" name="address" defaultValue={dancer.address ?? ''} className={inputClass} />
           </Field>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Field label="City" htmlFor="city">
+              <input id="city" name="city" defaultValue={dancer.city ?? ''} className={inputClass} />
+            </Field>
+            <Field label="Province" htmlFor="province">
+              <input id="province" name="province" defaultValue={dancer.province ?? ''} className={inputClass} />
+            </Field>
+            <Field label="Postal / Zip code" htmlFor="postal_code">
+              <input id="postal_code" name="postal_code" defaultValue={dancer.postal_code ?? ''} className={inputClass} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Field label="Phone number" htmlFor="phone_number">
+              <input id="phone_number" name="phone_number" defaultValue={dancer.phone_number ?? ''} className={inputClass} />
+            </Field>
+            <Field label="Phone type" htmlFor="phone_type">
+              <select id="phone_type" name="phone_type" defaultValue={dancer.phone_type ?? ''} className={inputClass}>
+                <option value="">Select…</option>
+                <option value="Mobile">Mobile</option>
+                <option value="Home">Home</option>
+              </select>
+            </Field>
+          </div>
           <Field label="Medical conditions / medications / allergies" htmlFor="medical_notes">
             <textarea
               id="medical_notes"

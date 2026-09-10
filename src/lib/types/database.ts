@@ -396,6 +396,7 @@ export type Database = {
         Row: {
           address: string | null
           birthday: string | null
+          city: string | null
           created_at: string
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
@@ -406,12 +407,17 @@ export type Database = {
           id: string
           last_name: string
           medical_notes: string | null
+          phone_number: string | null
+          phone_type: string | null
+          postal_code: string | null
+          province: string | null
           status: string
           updated_at: string
         }
         Insert: {
           address?: string | null
           birthday?: string | null
+          city?: string | null
           created_at?: string
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
@@ -422,12 +428,17 @@ export type Database = {
           id?: string
           last_name: string
           medical_notes?: string | null
+          phone_number?: string | null
+          phone_type?: string | null
+          postal_code?: string | null
+          province?: string | null
           status?: string
           updated_at?: string
         }
         Update: {
           address?: string | null
           birthday?: string | null
+          city?: string | null
           created_at?: string
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
@@ -438,6 +449,10 @@ export type Database = {
           id?: string
           last_name?: string
           medical_notes?: string | null
+          phone_number?: string | null
+          phone_type?: string | null
+          postal_code?: string | null
+          province?: string | null
           status?: string
           updated_at?: string
         }

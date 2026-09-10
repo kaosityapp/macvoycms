@@ -22,7 +22,7 @@ export default async function DancerApplicationPage({
   const { data: dancer } = await supabase
     .from('family_members')
     .select(
-      `id, first_name, last_name, address, birthday, gender, medical_notes,
+      `id, first_name, last_name, address, city, province, postal_code, phone_number, phone_type, birthday, gender, medical_notes,
        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, created_at,
        family:family_accounts(parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(status, class:classes(id, name, day_of_week, start_time, end_time, location:locations(name))),
@@ -120,6 +120,10 @@ export default async function DancerApplicationPage({
             <Row label="Birthday" value={d.birthday ? formatDateShort(d.birthday) : '—'} />
             <Row label="Gender" value={d.gender || '—'} />
             <Row label="Address" value={d.address || '—'} />
+            <Row label="City" value={d.city || '—'} />
+            <Row label="Province" value={d.province || '—'} />
+            <Row label="Postal / Zip code" value={d.postal_code || '—'} />
+            <Row label="Phone" value={d.phone_number ? `${d.phone_number} (${d.phone_type ?? '—'})` : '—'} />
             <Row label="Medical" value={d.medical_notes || 'None'} />
             <Row
               label="Emergency contact"

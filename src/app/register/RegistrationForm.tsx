@@ -178,6 +178,27 @@ export function RegistrationForm({
           <Field label="Address" htmlFor="address" required>
             <input id="address" name="address" required className={inputClass} />
           </Field>
+          <Field label="City" htmlFor="city" required>
+            <input id="city" name="city" required className={inputClass} />
+          </Field>
+          <Field label="Province" htmlFor="province" required>
+            <input id="province" name="province" required className={inputClass} />
+          </Field>
+          <Field label="Postal / Zip Code" htmlFor="postalCode" required>
+            <input id="postalCode" name="postalCode" required className={inputClass} />
+          </Field>
+          <Field label="Phone number" htmlFor="phoneNumber" required>
+            <input id="phoneNumber" name="phoneNumber" type="tel" required className={inputClass} />
+          </Field>
+          <Field label="Phone type" htmlFor="phoneType" required>
+            <select id="phoneType" name="phoneType" required className={inputClass} defaultValue="">
+              <option value="" disabled>
+                Select…
+              </option>
+              <option value="Mobile">Mobile</option>
+              <option value="Home">Home</option>
+            </select>
+          </Field>
           <Field label="Birthday" htmlFor="birthday" required>
             <input id="birthday" name="birthday" type="date" required className={inputClass} />
           </Field>
