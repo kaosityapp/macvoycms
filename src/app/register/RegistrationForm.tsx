@@ -75,6 +75,8 @@ export function RegistrationForm({
   const [state, action] = useActionState<RegistrationState, FormData>(registerDancer, {});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [agreed, setAgreed] = useState<Set<string>>(new Set());
+  const [registrantType, setRegistrantType] = useState<'child' | 'adult'>('child');
+  const isChild = registrantType === 'child';
   const allAgreed = agreed.size === POLICIES.length;
 
   function toggleAgreed(type: string, checked: boolean) {
@@ -119,15 +121,35 @@ export function RegistrationForm({
         </section>
       ) : (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-brand-pink">Parent / guardian</h2>
+          <h2 className="text-lg font-semibold text-brand-pink">
+            {isChild ? 'Parent / guardian' : 'Your account'}
+          </h2>
+          <Field label="Who is registering?" htmlFor="registrantType" required>
+            <select
+              id="registrantType"
+              name="registrantType"
+              required
+              className={inputClass}
+              value={registrantType}
+              onChange={(e) => setRegistrantType(e.target.value as 'child' | 'adult')}
+            >
+              <option value="child">Child — a parent/guardian is registering a dancer</option>
+              <option value="adult">Adult — registering myself</option>
+            </select>
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Parent 1 name" htmlFor="parent1Name" required>
+            <Field label={isChild ? 'Parent 1 name' : 'Full name'} htmlFor="parent1Name" required>
               <input id="parent1Name" name="parent1Name" required className={inputClass} />
             </Field>
-            <Field label="Parent 1 phone" htmlFor="parent1Phone" required>
+            <Field label={isChild ? 'Parent 1 phone' : 'Phone number'} htmlFor="parent1Phone" required>
               <input id="parent1Phone" name="parent1Phone" required className={inputClass} />
             </Field>
-            <Field label="Parent 1 email" htmlFor="parent1Email" required hint="This is your login.">
+            <Field
+              label={isChild ? 'Parent 1 email' : 'Email'}
+              htmlFor="parent1Email"
+              required
+              hint="This is your login."
+            >
               <input
                 id="parent1Email"
                 name="parent1Email"
@@ -140,15 +162,19 @@ export function RegistrationForm({
             <Field label="Create a password" htmlFor="password" required hint="At least 8 characters.">
               <input id="password" name="password" type="password" autoComplete="new-password" required minLength={8} className={inputClass} />
             </Field>
-            <Field label="Parent 2 name" htmlFor="parent2Name">
-              <input id="parent2Name" name="parent2Name" className={inputClass} />
-            </Field>
-            <Field label="Parent 2 phone" htmlFor="parent2Phone">
-              <input id="parent2Phone" name="parent2Phone" className={inputClass} />
-            </Field>
-            <Field label="Parent 2 email" htmlFor="parent2Email">
-              <input id="parent2Email" name="parent2Email" type="email" className={inputClass} />
-            </Field>
+            {isChild && (
+              <>
+                <Field label="Parent 2 name" htmlFor="parent2Name">
+                  <input id="parent2Name" name="parent2Name" className={inputClass} />
+                </Field>
+                <Field label="Parent 2 phone" htmlFor="parent2Phone">
+                  <input id="parent2Phone" name="parent2Phone" className={inputClass} />
+                </Field>
+                <Field label="Parent 2 email" htmlFor="parent2Email">
+                  <input id="parent2Email" name="parent2Email" type="email" className={inputClass} />
+                </Field>
+              </>
+            )}
             <Field label="How did you hear about us?" htmlFor="referralSource" required>
               <select id="referralSource" name="referralSource" required className={inputClass} defaultValue="">
                 <option value="" disabled>
