@@ -27,7 +27,10 @@ const emailSchema = z.string().email('Enter a valid email address.');
  * Step 0 of registration: does this email have pre-filled dancer/class/
  * payment data from Debbie's import? If so, send a magic link (no password
  * exists yet for this login) and let /register/continue pick up from there.
- * If not, the caller falls through to the full registration form.
+ * If not, the caller falls through to the full registration form. Matches
+ * either parent's email on the import — whichever parent actually completes
+ * the confirmation becomes the account's login (see register/continue), so
+ * it shouldn't matter which one Debbie listed as the primary contact.
  */
 export async function checkRegistrationEmail(
   _prev: EmailCheckResult,
@@ -41,7 +44,7 @@ export async function checkRegistrationEmail(
   const { data: pending } = await admin
     .from('pending_registrations')
     .select('id')
-    .ilike('email', email)
+    .or(`email.ilike.${email},parent2_email.ilike.${email}`)
     .eq('status', 'pending')
     .maybeSingle();
 

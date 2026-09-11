@@ -60,7 +60,7 @@ export async function completePendingRegistration(
   const { data: pending } = await admin
     .from('pending_registrations')
     .select('*')
-    .ilike('email', user.email ?? '')
+    .or(`email.ilike.${user.email ?? ''},parent2_email.ilike.${user.email ?? ''}`)
     .eq('status', 'pending')
     .maybeSingle();
   if (!pending) {
