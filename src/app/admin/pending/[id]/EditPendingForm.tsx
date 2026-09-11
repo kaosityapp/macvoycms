@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useState, useTransition } from 'react';
 import {
   updatePendingRegistration,
   deletePendingRegistration,
@@ -70,6 +70,7 @@ export function EditPendingForm({
   const [state, action] = useActionState<ActionState, FormData>(updatePendingRegistration, {});
 
   return (
+    <>
     <form action={action} className="space-y-8">
       <input type="hidden" name="pending_id" value={pendingId} />
       <input type="hidden" name="dancerCount" value={dancers.length} />
@@ -136,8 +137,11 @@ export function EditPendingForm({
       <div className="flex items-center justify-between">
         <SubmitButton pendingText="Saving…">Save changes</SubmitButton>
       </div>
+    </form>
 
-      <details className="rounded-md border border-red-200 p-3">
+      {/* Own top-level form — a <form> nested inside the edit form above would
+          be invalid HTML and silently submit as the outer form instead. */}
+      <details className="mt-6 rounded-md border border-red-200 p-3">
         <summary className="cursor-pointer text-sm font-medium text-red-700">
           Delete this pending registration
         </summary>
@@ -155,7 +159,7 @@ export function EditPendingForm({
           </button>
         </form>
       </details>
-    </form>
+    </>
   );
 }
 
@@ -387,7 +391,46 @@ function PendingPaymentHistory({
   dancerIndex: number;
   payments: { date: string; amount: number; method: string; note?: string }[];
 }) {
-  const [state, action] = useActionState<ActionState, FormData>(addPendingPayment, {});
+  // Plain buttons/state calling the server actions directly, NOT <form>
+  // elements — this renders inside the big "Save changes" <form> above, and
+  // a nested <form> is invalid HTML: the browser silently submits the OUTER
+  // form instead, so "remove"/"Add" would just re-save the whole page.
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(todayIso());
+  const [method, setMethod] = useState('e-transfer');
+  const [note, setNote] = useState('');
+
+  function handleRemove(paymentIndex: number) {
+    const fd = new FormData();
+    fd.set('pending_id', pendingId);
+    fd.set('dancer_index', String(dancerIndex));
+    fd.set('payment_index', String(paymentIndex));
+    startTransition(async () => {
+      await removePendingPayment(fd);
+    });
+  }
+
+  function handleAdd() {
+    setError(null);
+    const fd = new FormData();
+    fd.set('pending_id', pendingId);
+    fd.set('dancer_index', String(dancerIndex));
+    fd.set('amount', amount);
+    fd.set('date', date);
+    fd.set('method', method);
+    fd.set('note', note);
+    startTransition(async () => {
+      const result = await addPendingPayment({}, fd);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setAmount('');
+        setNote('');
+      }
+    });
+  }
 
   return (
     <div>
@@ -403,35 +446,56 @@ function PendingPaymentHistory({
                 <span className="capitalize text-brand-ink/50">· {p.method}</span>
                 {p.note && <span className="text-brand-ink/40"> — {p.note}</span>}
               </span>
-              <form action={removePendingPayment}>
-                <input type="hidden" name="pending_id" value={pendingId} />
-                <input type="hidden" name="dancer_index" value={dancerIndex} />
-                <input type="hidden" name="payment_index" value={i} />
-                <button type="submit" className="text-xs text-red-600 hover:underline">
-                  remove
-                </button>
-              </form>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => handleRemove(i)}
+                className="text-xs text-red-600 hover:underline disabled:opacity-50"
+              >
+                remove
+              </button>
             </li>
           ))}
         </ul>
       )}
 
-      <form action={action} className="mt-2 flex flex-wrap items-center gap-2">
-        <input type="hidden" name="pending_id" value={pendingId} />
-        <input type="hidden" name="dancer_index" value={dancerIndex} />
-        <FormError message={state.error} />
-        <FormSuccess message={state.success} />
-        <input name="amount" type="number" step="0.01" placeholder="Amount" required className={`${inputClass} w-24`} />
-        <input name="date" type="date" defaultValue={todayIso()} required className={`${inputClass} w-40`} />
-        <select name="method" defaultValue="e-transfer" className={`${inputClass} w-32`}>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <FormError message={error ?? undefined} />
+        <input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          type="number"
+          step="0.01"
+          placeholder="Amount"
+          className={`${inputClass} w-24`}
+        />
+        <input
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          type="date"
+          className={`${inputClass} w-40`}
+        />
+        <select value={method} onChange={(e) => setMethod(e.target.value)} className={`${inputClass} w-32`}>
           <option value="e-transfer">E-transfer</option>
           <option value="cash">Cash</option>
           <option value="cheque">Cheque</option>
           <option value="other">Other</option>
         </select>
-        <input name="note" placeholder="Note (optional)" className={`${inputClass} w-40`} />
-        <SubmitButton pendingText="Adding…">Add</SubmitButton>
-      </form>
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Note (optional)"
+          className={`${inputClass} w-40`}
+        />
+        <button
+          type="button"
+          disabled={pending}
+          onClick={handleAdd}
+          className="rounded-md bg-brand-pink px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {pending ? 'Adding…' : 'Add'}
+        </button>
+      </div>
     </div>
   );
 }
