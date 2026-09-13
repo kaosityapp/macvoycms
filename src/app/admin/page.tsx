@@ -76,7 +76,7 @@ export default async function AdminOverviewPage() {
     const plan = (m.payment_plans ?? []).find((p: any) => p.status === 'active') ?? null;
     const s = summarizePayments(plan, m.payments ?? [], today, billingActive);
     const name = `${m.first_name} ${m.last_name}`;
-    if (s.status === 'overdue') late.push({ name, total: s.total - s.paid, date: s.nextPaymentDate ?? today });
+    if (s.status === 'overdue') late.push({ name, total: s.overdueAmount ?? 0, date: s.overdueSinceDate ?? today });
     if (s.nextPaymentDate) due.push({ name, date: s.nextPaymentDate, amount: s.nextPaymentAmount ?? 0 });
   }
   due.sort((a, b) => a.date.localeCompare(b.date));
@@ -142,7 +142,7 @@ export default async function AdminOverviewPage() {
               <li key={i} className="flex items-center justify-between py-1.5">
                 <span className="text-brand-ink">{l.name}</span>
                 <span className="text-red-700">
-                  {money(l.total)} · due {formatDateShort(l.date)}
+                  {money(l.total)} · overdue since {formatDateShort(l.date)}
                 </span>
               </li>
             ))}

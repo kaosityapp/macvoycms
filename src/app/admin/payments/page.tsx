@@ -27,7 +27,7 @@ export default async function AdminPaymentsPage() {
   ]);
 
   const upcoming: { name: string; date: string; amount: number }[] = [];
-  const late: { name: string; amount: number; date: string }[] = [];
+  const late: { name: string; amount: number; date: string; nextAttempt: string | null }[] = [];
   for (const m of (dancersRes.data ?? []) as any[]) {
     const plan = (m.payment_plans ?? []).find((p: any) => p.status === 'active') ?? null;
     if (!plan) continue;
@@ -47,7 +47,9 @@ export default async function AdminPaymentsPage() {
       }
     }
     const s = summarizePayments(plan, m.payments ?? [], today, billingActive);
-    if (s.status === 'overdue') late.push({ name, amount: s.total - s.paid, date: s.nextPaymentDate ?? today });
+    if (s.status === 'overdue') {
+      late.push({ name, amount: s.overdueAmount ?? 0, date: s.overdueSinceDate ?? today, nextAttempt: s.nextPaymentDate });
+    }
   }
   upcoming.sort((a, b) => a.date.localeCompare(b.date));
   const upcomingTotal = upcoming.reduce((sum, u) => sum + u.amount, 0);
@@ -125,7 +127,9 @@ export default async function AdminPaymentsPage() {
                   <td className="px-5 py-2 text-brand-ink">{l.name}</td>
                   <td className="px-5 py-2 font-medium text-red-700">{money(l.amount)}</td>
                   <td className="px-5 py-2 text-brand-ink/70">{formatDateShort(l.date)}</td>
-                  <td className="px-5 py-2 text-brand-ink/50">—</td>
+                  <td className="px-5 py-2 text-brand-ink/50">
+                    {l.nextAttempt ? formatDateShort(l.nextAttempt) : '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>
