@@ -32,6 +32,7 @@ export interface Installment {
   installmentIndex: number;
   date: string;
   amount: number;
+  isOverdue: boolean;
 }
 
 export interface Receipt {
@@ -161,7 +162,7 @@ export async function getUpcomingInstallments(
       let cumulative = 0;
       schedule.forEach((item: any, idx: number) => {
         cumulative += Number(item?.amount ?? 0);
-        if (!item?.date || item.date < todayIso) return;
+        if (!item?.date) return;
         if (paidTotal >= cumulative - 0.005) return; // already covered
         out.push({
           memberId: m.id,
@@ -171,6 +172,7 @@ export async function getUpcomingInstallments(
           installmentIndex: idx,
           date: item.date,
           amount: Number(item.amount ?? 0),
+          isOverdue: item.date < todayIso,
         });
       });
     }

@@ -130,8 +130,12 @@ export default async function PaymentsPage() {
                 <div>
                   <div className="font-medium text-brand-ink">{money(item.amount)}</div>
                   <div className="text-sm text-brand-ink/60">
-                    Due {formatDateLong(item.date)} · {item.memberName} ·{' '}
-                    {PLAN_TYPE_LABEL[item.planType] ?? 'Custom plan'}
+                    {item.isOverdue ? (
+                      <span className="font-semibold text-red-600">Overdue since {formatDateLong(item.date)}</span>
+                    ) : (
+                      <>Due {formatDateLong(item.date)}</>
+                    )}{' '}
+                    · {item.memberName} · {PLAN_TYPE_LABEL[item.planType] ?? 'Custom plan'}
                   </div>
                 </div>
                 {canPayOnline ? (

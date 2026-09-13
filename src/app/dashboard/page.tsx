@@ -199,10 +199,18 @@ export default async function OverviewPage({
             </p>
           ) : (
             upcomingPayments.map((p, i) => (
-              <div key={i} className="flex items-center justify-between px-5 py-3 text-sm">
+              <Link
+                key={i}
+                href="/dashboard/payments"
+                className="flex items-center justify-between px-5 py-3 text-sm hover:bg-brand-pink/5"
+              >
                 <span className="font-medium text-brand-ink">{money(p.amount)}</span>
-                <span className="text-brand-ink/60">{formatDateShort(p.date)}</span>
-              </div>
+                {p.isOverdue ? (
+                  <span className="font-semibold text-red-600">Overdue since {formatDateShort(p.date)}</span>
+                ) : (
+                  <span className="text-brand-ink/60">{formatDateShort(p.date)}</span>
+                )}
+              </Link>
             ))
           )}
         </div>
