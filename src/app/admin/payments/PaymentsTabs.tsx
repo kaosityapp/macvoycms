@@ -28,29 +28,42 @@ export interface UpcomingRow {
   amount: number;
 }
 
-type Tab = 'late' | 'recent' | 'upcoming';
+export interface BatchRow {
+  id: string;
+  method: 'card' | 'ach';
+  batchNumber: number | null;
+  amount: number;
+  dateClosed: string | null;
+  estimatedDepositDate: string | null;
+}
+
+type Tab = 'late' | 'recent' | 'upcoming' | 'deposits';
 
 export function PaymentsTabs({
   late,
   recent,
   recentTotalCount,
   upcoming,
+  batches,
 }: {
   late: LateRow[];
   recent: RecentRow[];
   recentTotalCount: number;
   upcoming: UpcomingRow[];
+  batches: BatchRow[];
 }) {
   const [tab, setTab] = useState<Tab>(late.length > 0 ? 'late' : 'recent');
 
   const lateTotal = late.reduce((sum, l) => sum + l.amount, 0);
   const recentTotal = recent.reduce((sum, r) => sum + r.amount, 0);
   const upcomingTotal = upcoming.reduce((sum, u) => sum + u.amount, 0);
+  const batchesTotal = batches.reduce((sum, b) => sum + b.amount, 0);
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'late', label: `Late Payments (${late.length})` },
     { key: 'recent', label: `Recent Payments (${recentTotalCount})` },
     { key: 'upcoming', label: `Upcoming Payments (${upcoming.length})` },
+    { key: 'deposits', label: `Bank Deposits (${batches.length})` },
   ];
 
   return (
@@ -179,6 +192,65 @@ export function PaymentsTabs({
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {tab === 'deposits' && (
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-lg font-semibold text-brand-pink">Bank deposits</h2>
+            <span className="text-sm text-brand-ink/60">Total: {money(batchesTotal)}</span>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-brand-ink/10 bg-white">
+            <table className="w-full min-w-[36rem] text-sm">
+              <thead>
+                <tr className="border-b border-brand-ink/10 text-left text-brand-ink/50">
+                  <th className="px-5 py-2 font-medium">Method</th>
+                  <th className="px-5 py-2 font-medium">Batch date</th>
+                  <th className="px-5 py-2 font-medium">Amount</th>
+                  <th className="px-5 py-2 font-medium">Est. bank deposit date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-ink/10">
+                {batches.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-4 text-brand-ink/60">
+                      No batches yet.
+                    </td>
+                  </tr>
+                )}
+                {batches.map((b) => (
+                  <tr key={`${b.method}-${b.id}`}>
+                    <td className="px-5 py-2 text-brand-ink">
+                      {b.method === 'card' ? 'Credit card' : 'Bank (ACH/EFT)'}
+                    </td>
+                    <td className="px-5 py-2 text-brand-ink/70">
+                      {b.dateClosed ? formatDateShort(b.dateClosed.slice(0, 10)) : '—'}
+                    </td>
+                    <td className="px-5 py-2 font-medium text-brand-ink">{money(b.amount)}</td>
+                    <td className="px-5 py-2 text-brand-ink/70">
+                      {b.estimatedDepositDate ? formatDateShort(b.estimatedDepositDate) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-brand-ink/50">
+            Deposit dates above are an estimate based on Helcim&apos;s standard payout timeline
+            (Helcim&apos;s API doesn&apos;t report the actual deposit date) — actual timing can
+            vary, especially around weekends and holidays. Once your batches are processed,
+            Helcim automatically deposits the funds into your bank account. Learn more about{' '}
+            <a
+              href="https://learn.helcim.com/docs/when-to-expect-a-deposit"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-pink underline"
+            >
+              our payout timelines here
+            </a>
+            .
+          </p>
         </div>
       )}
     </section>

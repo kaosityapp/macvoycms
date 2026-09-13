@@ -363,3 +363,93 @@ export function isHelcimConfigured(): boolean {
 export function isHelcimWebhookConfigured(): boolean {
   return Boolean(process.env.HELCIM_WEBHOOK_SECRET);
 }
+
+// ---------------------------------------------------------------------------
+// Batches & deposits (admin "Bank Deposits" tab).
+//
+// Helcim's API has no "when was this deposited" field anywhere — batches
+// only carry open/close dates. The estimatedDepositDate below is OUR
+// calculation from Helcim's published payout policy (business days after
+// close, skipping weekends — NOT statutory holidays, which Helcim's own
+// timeline page says also push it out), not a value Helcim returns. Always
+// pair it with a link to https://learn.helcim.com/docs/when-to-expect-a-deposit
+// rather than presenting it as authoritative.
+// ---------------------------------------------------------------------------
+
+export interface BatchSummary {
+  id: string;
+  method: 'card' | 'ach';
+  batchNumber: number | null;
+  amount: number;
+  dateClosed: string | null;
+  /** Our estimate only — see module doc comment above. */
+  estimatedDepositDate: string | null;
+}
+
+/** Add `n` business days (Mon–Fri only) to a 'YYYY-MM-DD HH:mm:ss'-ish date string. */
+function addBusinessDays(dateStr: string, n: number): string {
+  const date = new Date(dateStr.replace(' ', 'T'));
+  let added = 0;
+  while (added < n) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const day = date.getUTCDay();
+    if (day !== 0 && day !== 6) added += 1;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Closed card batches with their net amount (approved purchases minus any
+ * reversals/refunds in that batch) — card-batches itself carries no amount,
+ * so this cross-references /card-transactions by cardBatchId. Estimated
+ * deposit uses the standard (non-Faster-Deposits) 2-business-day window.
+ */
+export async function listCardBatchesWithAmounts(): Promise<BatchSummary[]> {
+  const batchesData = await helcimFetch('/card-batches', { method: 'GET' });
+  const batches: any[] = Array.isArray(batchesData) ? batchesData : [];
+  const closed = batches.filter((b) => b.closed);
+  if (closed.length === 0) return [];
+
+  const oldest = closed.reduce((min: string, b: any) => (b.dateCreated < min ? b.dateCreated : min), closed[0].dateCreated);
+  const txnData = await helcimFetch(
+    `/card-transactions?dateCreatedFrom=${encodeURIComponent(new Date(oldest.replace(' ', 'T')).toISOString())}&limit=300`,
+    { method: 'GET' },
+  );
+  const txns: any[] = Array.isArray(txnData) ? txnData : Array.isArray(txnData?.data) ? txnData.data : [];
+
+  const totalsByBatch = new Map<number, number>();
+  for (const t of txns) {
+    if (t.status !== 'APPROVED' || t.cardBatchId == null) continue;
+    const sign = t.type === 'reverse' ? -1 : 1;
+    totalsByBatch.set(t.cardBatchId, (totalsByBatch.get(t.cardBatchId) ?? 0) + sign * Number(t.amount || 0));
+  }
+
+  return closed.map((b) => ({
+    id: String(b.id),
+    method: 'card' as const,
+    batchNumber: b.batchNumber ?? null,
+    amount: totalsByBatch.get(b.id) ?? 0,
+    dateClosed: b.dateClosed ?? null,
+    estimatedDepositDate: b.dateClosed ? addBusinessDays(b.dateClosed, 2) : null,
+  }));
+}
+
+/**
+ * Closed ACH batches with their withdrawal total (Helcim reports this
+ * directly, unlike card batches). Estimated deposit uses the standard
+ * 5-business-day (upper end of Helcim's stated 3–5 day) window.
+ */
+export async function listAchBatchesWithAmounts(): Promise<BatchSummary[]> {
+  const data = await helcimFetch('/ach/batches', { method: 'GET' });
+  const batches: any[] = Array.isArray(data?.batches) ? data.batches : [];
+  return batches
+    .filter((b) => b.dateClosed)
+    .map((b) => ({
+      id: String(b.batchId),
+      method: 'ach' as const,
+      batchNumber: null,
+      amount: Number(b.amountWithdrawals ?? 0),
+      dateClosed: b.dateClosed ?? null,
+      estimatedDepositDate: b.dateClosed ? addBusinessDays(b.dateClosed, 5) : null,
+    }));
+}

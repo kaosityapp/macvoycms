@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
-import { isHelcimConfigured } from '@/lib/integrations/helcim';
+import { isHelcimConfigured, listCardBatchesWithAmounts, listAchBatchesWithAmounts } from '@/lib/integrations/helcim';
 import { summarizePayments } from '@/lib/admin/paymentStatus';
 import { todayIso } from '@/lib/billing/dueDates';
 import { inputClass } from '@/components/ui';
-import { PaymentsTabs, type LateRow, type RecentRow, type UpcomingRow } from './PaymentsTabs';
+import { PaymentsTabs, type LateRow, type RecentRow, type UpcomingRow, type BatchRow } from './PaymentsTabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,6 +113,22 @@ export default async function AdminPaymentsPage() {
   }));
   const recentTotalCount = recentCountRes.count ?? recent.length;
 
+  let batches: BatchRow[] = [];
+  if (billingActive) {
+    try {
+      const [cardBatches, achBatches] = await Promise.all([
+        listCardBatchesWithAmounts(),
+        listAchBatchesWithAmounts(),
+      ]);
+      batches = [...cardBatches, ...achBatches].sort((a, b) =>
+        (b.dateClosed ?? '').localeCompare(a.dateClosed ?? ''),
+      );
+    } catch {
+      // Non-fatal — the rest of the page (late/recent/upcoming) still works
+      // even if Helcim's batch endpoints are briefly unavailable.
+    }
+  }
+
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-brand-pink">Payments</h1>
@@ -124,7 +140,13 @@ export default async function AdminPaymentsPage() {
         </p>
       )}
 
-      <PaymentsTabs late={late} recent={recent} recentTotalCount={recentTotalCount} upcoming={upcoming} />
+      <PaymentsTabs
+        late={late}
+        recent={recent}
+        recentTotalCount={recentTotalCount}
+        upcoming={upcoming}
+        batches={batches}
+      />
 
       {/* CSV export */}
       <section className="space-y-3 rounded-lg border border-brand-ink/10 bg-white p-5">
