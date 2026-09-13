@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isHelcimConfigured, getAchTransaction, findCardTransactionByInvoice } from '@/lib/integrations/helcim';
+import {
+  isHelcimConfigured,
+  getAchTransaction,
+  findCardTransactionByInvoice,
+  findAchTransactionByInvoice,
+  lookupCustomerIdByCode,
+} from '@/lib/integrations/helcim';
 import {
   findDueInstallment,
   attemptInstallmentCharge,
@@ -151,6 +157,16 @@ export async function GET(request: NextRequest) {
  * would already have arrived) and reconciles it. Anything found this way
  * also triggers an admin alert — it means the webhook itself needs
  * investigating, not just this one payment.
+ *
+ * A `bank_token IS NULL` intent isn't necessarily a card checkout, though —
+ * it's also the state of a BANK (ACH) checkout whose client-side confirm
+ * (confirmPaymentClientSide) never reached us, e.g. the family closed the
+ * tab right after paying. That intent looks identical to an abandoned card
+ * checkout (same status, no bank_token yet — that only gets set inside the
+ * bank branch of confirmPaymentClientSide), so before concluding "never
+ * completed" and expiring it, this also checks Helcim's ACH transactions —
+ * otherwise a real, cleared bank withdrawal gets silently marked as if it
+ * never happened.
  */
 async function checkCardReconciliation(admin: AdminClient): Promise<{ id: string; outcome: string }[]> {
   const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -158,9 +174,9 @@ async function checkCardReconciliation(admin: AdminClient): Promise<{ id: string
 
   const { data: stale } = await admin
     .from('payment_intents')
-    .select('id, family_member_id, payment_plan_id, installment_index, amount, category, reference, created_at')
+    .select('id, family_member_id, payment_plan_id, installment_index, amount, category, reference, created_at, save_card')
     .in('status', ['pending', 'client_confirmed'])
-    .is('bank_token', null) // card intents only — ACH uses 'settling', handled above
+    .is('bank_token', null) // not yet confirmed as either card or bank — see doc comment above
     .lte('created_at', cutoff);
 
   const out: { id: string; outcome: string }[] = [];
@@ -174,6 +190,12 @@ async function checkCardReconciliation(admin: AdminClient): Promise<{ id: string
     }
 
     if (!txn) {
+      const achOutcome = await reconcileAchFallback(admin, intent);
+      if (achOutcome) {
+        out.push({ id: intent.id, outcome: achOutcome });
+        continue;
+      }
+
       // Never reached Helcim at all (checkout abandoned) — stop checking
       // after 24h so it doesn't get polled forever.
       if (intent.created_at <= expireCutoff) {
@@ -219,6 +241,104 @@ async function checkCardReconciliation(admin: AdminClient): Promise<{ id: string
   }
 
   return out;
+}
+
+/**
+ * Checked when a stale intent has no matching CARD transaction — is it
+ * actually a bank (ACH) payment whose confirmPaymentClientSide call never
+ * reached us? If Helcim shows it settled or declined, resolve it the same
+ * way checkAchSettlements would have. Returns null (meaning "still genuinely
+ * not found — fall through to the abandoned-checkout path") if there's no
+ * matching ACH transaction either.
+ */
+async function reconcileAchFallback(
+  admin: AdminClient,
+  intent: {
+    id: string;
+    family_member_id: string;
+    payment_plan_id: string | null;
+    amount: number;
+    category: string;
+    reference: string;
+    save_card: boolean;
+  },
+): Promise<string | null> {
+  let achTxn;
+  try {
+    achTxn = await findAchTransactionByInvoice(intent.reference);
+  } catch (err) {
+    return `ach lookup failed: ${(err as Error).message}`;
+  }
+  if (!achTxn) return null;
+
+  const dancerName = await dancerNameFor(admin, intent.family_member_id);
+  const settledApproved = achTxn.statusAuth === 1 && achTxn.statusClearing === 1;
+  const settledDeclined = achTxn.statusAuth === 2 || achTxn.statusAuth === 4 || achTxn.statusClearing === 4;
+
+  if (settledApproved) {
+    let bankCustomerId: string | null = null;
+    if (achTxn.customerCode) {
+      try {
+        bankCustomerId = await lookupCustomerIdByCode(achTxn.customerCode);
+      } catch {
+        // Non-fatal — the payment itself still gets recorded below.
+      }
+    }
+
+    await admin
+      .from('payments')
+      .insert({
+        family_member_id: intent.family_member_id,
+        payment_plan_id: intent.payment_plan_id,
+        amount: achTxn.amount || intent.amount,
+        category: intent.category,
+        paid_at: new Date().toISOString(),
+        method: 'ach',
+        helcim_transaction_id: achTxn.id,
+      })
+      .then(() => {}, () => {}); // idempotent — ignore unique-violation on a re-poll
+    await admin
+      .from('payment_intents')
+      .update({
+        status: 'completed',
+        helcim_transaction_id: achTxn.id,
+        bank_account_id: achTxn.bankAccountId,
+        bank_customer_code: achTxn.customerCode ?? null,
+        bank_customer_id: bankCustomerId,
+      })
+      .eq('id', intent.id);
+
+    if (intent.save_card && intent.payment_plan_id && achTxn.bankAccountId && bankCustomerId) {
+      await admin
+        .from('payment_plans')
+        .update({
+          stored_bank_customer_id: bankCustomerId,
+          stored_bank_account_id: achTxn.bankAccountId,
+          auto_charge: true,
+        })
+        .eq('id', intent.payment_plan_id);
+    }
+
+    await sendPaymentReceipt(admin, intent.family_member_id, Number(achTxn.amount || intent.amount), achTxn.id);
+    await sendAdminAlert(`Missed bank payment confirmation recovered — ${dancerName}`, [
+      `${dancerName}'s bank payment of ${money(Number(achTxn.amount || intent.amount))} settled successfully at Helcim, but we never recorded it — likely because they closed the page right after paying, before it could confirm here.`,
+      `Recovered by the daily reconciliation check instead — no action needed, but worth knowing this happened.`,
+    ]);
+    return 'recovered — bank payment settled, payment recorded, admin alerted';
+  }
+
+  if (settledDeclined) {
+    await admin.from('payment_intents').update({ status: 'failed', helcim_transaction_id: achTxn.id }).eq('id', intent.id);
+    return `recovered — bank payment declined (statusAuth ${achTxn.statusAuth}, statusClearing ${achTxn.statusClearing})`;
+  }
+
+  // Exists at Helcim but still mid-settlement — hand it to the normal ACH
+  // settlement poller instead of expiring it.
+  await admin
+    .from('payment_intents')
+    .update({ status: 'settling', helcim_transaction_id: achTxn.id, bank_account_id: achTxn.bankAccountId })
+    .eq('id', intent.id);
+  return 'still settling at Helcim — handed off to settlement poll';
 }
 
 /**

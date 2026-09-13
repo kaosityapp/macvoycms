@@ -291,6 +291,36 @@ export async function getAchTransaction(id: string): Promise<AchTransaction> {
   };
 }
 
+/**
+ * Find a bank (ACH/EFT) transaction by our invoiceNumber — a backstop for
+ * when a family's own bank confirmation (confirmPaymentClientSide) never
+ * reaches us (e.g. they closed the tab right after paying), which otherwise
+ * leaves the payment_intent stuck at 'pending' forever with no bank_token,
+ * indistinguishable from a genuinely-abandoned CARD checkout. Helcim's list
+ * endpoint doesn't actually filter server-side by invoiceNumber (confirmed
+ * empirically — it ignores the query param), so this fetches a recent window
+ * and matches client-side.
+ */
+export async function findAchTransactionByInvoice(invoiceNumber: string): Promise<AchTransaction | null> {
+  const from = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+  const data = await helcimFetch(
+    `/ach/transactions?dateCreatedFrom=${encodeURIComponent(from)}&limit=300`,
+    { method: 'GET' },
+  );
+  const list: any[] = Array.isArray(data?.transactions) ? data.transactions : [];
+  const match = list.find((t) => t.invoiceNumber === invoiceNumber);
+  if (!match) return null;
+  return {
+    id: String(match.id),
+    bankAccountId: match.bankAccountId != null ? String(match.bankAccountId) : null,
+    amount: Number(match.amount ?? 0),
+    invoiceNumber: match.invoiceNumber ? String(match.invoiceNumber) : undefined,
+    customerCode: match.customerCode ? String(match.customerCode) : undefined,
+    statusAuth: match.statusAuth != null ? Number(match.statusAuth) : null,
+    statusClearing: match.statusClearing != null ? Number(match.statusClearing) : null,
+  };
+}
+
 export interface ChargeStoredBankAccountInput {
   amount: number;
   bankAccountId: string;
