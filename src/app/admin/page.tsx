@@ -41,11 +41,16 @@ export default async function AdminOverviewPage() {
       .order('start_time', { ascending: true }),
     supabase
       .from('family_members')
-      .select('id, first_name, last_name')
+      .select('id, first_name, last_name, created_at')
       .eq('status', 'pending_pricing')
       .order('created_at', { ascending: true }),
   ]);
-  const needsPricing = (needsPricingRes.data ?? []) as { id: string; first_name: string; last_name: string }[];
+  const needsPricing = (needsPricingRes.data ?? []) as {
+    id: string;
+    first_name: string;
+    last_name: string;
+    created_at: string;
+  }[];
 
   const dancerCount = dancerCountRes.count ?? 0;
 
@@ -126,7 +131,9 @@ export default async function AdminOverviewPage() {
                 <Link href={`/admin/families/${n.id}`} className="text-brand-ink hover:underline">
                   {n.first_name} {n.last_name}
                 </Link>
-                <span className="text-orange-800">registered directly — set a price to approve</span>
+                <span className="text-orange-800">
+                  applied {formatDateShort(toEasternDateIso(n.created_at))} — set a price to approve
+                </span>
               </li>
             ))}
           </ul>

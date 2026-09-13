@@ -417,6 +417,7 @@ export type Database = {
           id: string
           last_name: string
           medical_notes: string | null
+          pending_pricing_reminder_sent_at: string | null
           phone_number: string | null
           phone_type: string | null
           postal_code: string | null
@@ -445,6 +446,7 @@ export type Database = {
           id?: string
           last_name: string
           medical_notes?: string | null
+          pending_pricing_reminder_sent_at?: string | null
           phone_number?: string | null
           phone_type?: string | null
           postal_code?: string | null
@@ -473,6 +475,7 @@ export type Database = {
           id?: string
           last_name?: string
           medical_notes?: string | null
+          pending_pricing_reminder_sent_at?: string | null
           phone_number?: string | null
           phone_type?: string | null
           postal_code?: string | null
@@ -556,6 +559,7 @@ export type Database = {
           category: string
           checkout_token: string | null
           created_at: string
+          failure_reason: string | null
           family_member_id: string
           helcim_transaction_id: string | null
           id: string
@@ -575,6 +579,7 @@ export type Database = {
           category?: string
           checkout_token?: string | null
           created_at?: string
+          failure_reason?: string | null
           family_member_id: string
           helcim_transaction_id?: string | null
           id?: string
@@ -594,6 +599,7 @@ export type Database = {
           category?: string
           checkout_token?: string | null
           created_at?: string
+          failure_reason?: string | null
           family_member_id?: string
           helcim_transaction_id?: string | null
           id?: string
@@ -637,6 +643,7 @@ export type Database = {
           stored_customer_code: string | null
           total_amount: number
           updated_at: string
+          urgent_reminder_sent_at: string | null
         }
         Insert: {
           auto_charge?: boolean
@@ -653,6 +660,7 @@ export type Database = {
           stored_customer_code?: string | null
           total_amount: number
           updated_at?: string
+          urgent_reminder_sent_at?: string | null
         }
         Update: {
           auto_charge?: boolean
@@ -669,6 +677,7 @@ export type Database = {
           stored_customer_code?: string | null
           total_amount?: number
           updated_at?: string
+          urgent_reminder_sent_at?: string | null
         }
         Relationships: [
           {

@@ -2,33 +2,61 @@ import { createClient } from '@/lib/supabase/server';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments } from '@/lib/admin/paymentStatus';
 import { todayIso } from '@/lib/billing/dueDates';
-import { money, formatTimestamp, formatDateShort } from '@/lib/format';
 import { inputClass } from '@/components/ui';
+import { PaymentsTabs, type LateRow, type RecentRow, type UpcomingRow } from './PaymentsTabs';
 
 export const dynamic = 'force-dynamic';
+
+const FAILED_STATUSES = new Set(['failed', 'expired']);
 
 export default async function AdminPaymentsPage() {
   const supabase = await createClient();
   const today = todayIso();
   const billingActive = isHelcimConfigured();
 
-  const [dancersRes, recentRes] = await Promise.all([
+  const [dancersRes, recentRes, recentCountRes] = await Promise.all([
     supabase
       .from('family_members')
       .select(
-        'id, first_name, last_name, payment_plans(total_amount, installment_schedule, status), payments(amount, paid_at)',
+        `id, first_name, last_name,
+         payment_plans(id, total_amount, installment_schedule, status, stored_card_token, stored_bank_account_id),
+         payments(amount, paid_at)`,
       )
       .eq('status', 'active'),
     supabase
       .from('payments')
       .select('id, amount, category, paid_at, family_members(first_name, last_name)')
       .order('paid_at', { ascending: false, nullsFirst: false })
-      .limit(25),
+      .limit(50),
+    supabase.from('payments').select('id', { count: 'exact', head: true }),
   ]);
 
-  const upcoming: { name: string; date: string; amount: number }[] = [];
-  const late: { name: string; amount: number; date: string; nextAttempt: string | null }[] = [];
-  for (const m of (dancersRes.data ?? []) as any[]) {
+  const dancers = (dancersRes.data ?? []) as any[];
+  const activePlanIds = dancers
+    .map((m) => (m.payment_plans ?? []).find((p: any) => p.status === 'active')?.id)
+    .filter(Boolean) as string[];
+
+  const { data: intentsData } =
+    activePlanIds.length > 0
+      ? await supabase
+          .from('payment_intents')
+          .select('payment_plan_id, installment_index, status, created_at, failure_reason')
+          .in('payment_plan_id', activePlanIds)
+      : { data: [] as any[] };
+
+  // Group attempts by (plan, installment index) — both auto-charge and the
+  // family's own "Pay Now" attempts land in the same table.
+  const intentsByKey = new Map<string, any[]>();
+  for (const intent of intentsData ?? []) {
+    if (intent.installment_index == null) continue;
+    const key = `${intent.payment_plan_id}-${intent.installment_index}`;
+    if (!intentsByKey.has(key)) intentsByKey.set(key, []);
+    intentsByKey.get(key)!.push(intent);
+  }
+
+  const upcoming: UpcomingRow[] = [];
+  const late: LateRow[] = [];
+  for (const m of dancers) {
     const plan = (m.payment_plans ?? []).find((p: any) => p.status === 'active') ?? null;
     if (!plan) continue;
     const name = `${m.first_name} ${m.last_name}`;
@@ -46,14 +74,44 @@ export default async function AdminPaymentsPage() {
         upcoming.push({ name, date: inst.date, amount: Number(inst.amount) });
       }
     }
+
     const s = summarizePayments(plan, m.payments ?? [], today, billingActive);
     if (s.status === 'overdue') {
-      late.push({ name, amount: s.overdueAmount ?? 0, date: s.overdueSinceDate ?? today, nextAttempt: s.nextPaymentDate });
+      const overdueIndex = schedule.findIndex((i: any) => i?.date === s.overdueSinceDate);
+      const attempts: any[] = overdueIndex >= 0 ? (intentsByKey.get(`${plan.id}-${overdueIndex}`) ?? []) : [];
+      attempts.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const hasCardOrBank = Boolean(plan.stored_card_token || plan.stored_bank_account_id);
+
+      let error: string | null = null;
+      if (!hasCardOrBank) {
+        error = 'No card on file';
+      } else if (attempts.length > 0) {
+        const lastFailed = attempts.find((a) => FAILED_STATUSES.has(a.status));
+        error = lastFailed?.failure_reason ?? (lastFailed ? 'Payment attempt failed' : null);
+      }
+
+      late.push({
+        memberId: m.id,
+        name,
+        amount: s.overdueAmount ?? 0,
+        date: s.overdueSinceDate ?? today,
+        attempts: attempts.length,
+        lastAttemptDate: attempts[0]?.created_at ?? null,
+        error,
+      });
     }
   }
   upcoming.sort((a, b) => a.date.localeCompare(b.date));
-  const upcomingTotal = upcoming.reduce((sum, u) => sum + u.amount, 0);
-  const payments = (recentRes.data ?? []) as any[];
+  late.sort((a, b) => a.date.localeCompare(b.date));
+
+  const recent: RecentRow[] = ((recentRes.data ?? []) as any[]).map((p) => ({
+    id: p.id,
+    amount: Number(p.amount),
+    category: p.category,
+    name: p.family_members ? `${p.family_members.first_name} ${p.family_members.last_name}` : '',
+    paidAt: p.paid_at,
+  }));
+  const recentTotalCount = recentCountRes.count ?? recent.length;
 
   return (
     <div className="space-y-8">
@@ -66,76 +124,7 @@ export default async function AdminPaymentsPage() {
         </p>
       )}
 
-      {/* Upcoming payments */}
-      <section className="space-y-3">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-semibold text-brand-pink">Upcoming payments</h2>
-          <span className="text-sm text-brand-ink/60">Total: {money(upcomingTotal)}</span>
-        </div>
-        <div className="overflow-x-auto rounded-lg border border-brand-ink/10 bg-white">
-          <table className="w-full min-w-[32rem] text-sm">
-            <thead>
-              <tr className="border-b border-brand-ink/10 text-left text-brand-ink/50">
-                <th className="px-5 py-2 font-medium">Dancer</th>
-                <th className="px-5 py-2 font-medium">Due date</th>
-                <th className="px-5 py-2 font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-ink/10">
-              {upcoming.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-5 py-4 text-brand-ink/60">
-                    Nothing scheduled.
-                  </td>
-                </tr>
-              )}
-              {upcoming.map((u, i) => (
-                <tr key={i}>
-                  <td className="px-5 py-2 text-brand-ink">{u.name}</td>
-                  <td className="px-5 py-2 text-brand-ink/70">{formatDateShort(u.date)}</td>
-                  <td className="px-5 py-2 text-brand-ink/70">{money(u.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Late payments */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-brand-pink">Late payments</h2>
-        <div className="overflow-x-auto rounded-lg border border-brand-ink/10 bg-white">
-          <table className="w-full min-w-[36rem] text-sm">
-            <thead>
-              <tr className="border-b border-brand-ink/10 text-left text-brand-ink/50">
-                <th className="px-5 py-2 font-medium">Dancer</th>
-                <th className="px-5 py-2 font-medium">Amount owed</th>
-                <th className="px-5 py-2 font-medium">Due date</th>
-                <th className="px-5 py-2 font-medium">Next attempt</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-ink/10">
-              {late.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-5 py-4 text-brand-ink/60">
-                    No late payments.
-                  </td>
-                </tr>
-              )}
-              {late.map((l, i) => (
-                <tr key={i}>
-                  <td className="px-5 py-2 text-brand-ink">{l.name}</td>
-                  <td className="px-5 py-2 font-medium text-red-700">{money(l.amount)}</td>
-                  <td className="px-5 py-2 text-brand-ink/70">{formatDateShort(l.date)}</td>
-                  <td className="px-5 py-2 text-brand-ink/50">
-                    {l.nextAttempt ? formatDateShort(l.nextAttempt) : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <PaymentsTabs late={late} recent={recent} recentTotalCount={recentTotalCount} upcoming={upcoming} />
 
       {/* CSV export */}
       <section className="space-y-3 rounded-lg border border-brand-ink/10 bg-white p-5">
@@ -163,31 +152,6 @@ export default async function AdminPaymentsPage() {
             Download CSV
           </button>
         </form>
-      </section>
-
-      {/* Recent recorded payments */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-brand-pink">Recent payments</h2>
-        <ul className="divide-y divide-brand-ink/10 rounded-lg border border-brand-ink/10 bg-white">
-          {payments.map((p) => (
-            <li key={p.id} className="flex items-center justify-between px-5 py-3 text-sm">
-              <div>
-                <span className="font-medium text-brand-ink">{money(p.amount)}</span>{' '}
-                <span className="capitalize text-brand-ink/60">· {p.category}</span>{' '}
-                <span className="text-brand-ink/60">
-                  ·{' '}
-                  {p.family_members
-                    ? `${p.family_members.first_name} ${p.family_members.last_name}`
-                    : ''}
-                </span>
-              </div>
-              <span className="text-brand-ink/50">{p.paid_at ? formatTimestamp(p.paid_at) : ''}</span>
-            </li>
-          ))}
-          {payments.length === 0 && (
-            <li className="px-5 py-6 text-brand-ink/60">No payments recorded yet.</li>
-          )}
-        </ul>
       </section>
     </div>
   );

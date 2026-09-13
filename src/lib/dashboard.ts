@@ -325,3 +325,41 @@ export async function getReadAnnouncementIds(accountId: string): Promise<Set<str
     .eq('family_account_id', accountId);
   return new Set((data ?? []).map((r) => r.announcement_id));
 }
+
+export interface UrgentPaymentReminder {
+  planId: string;
+  memberName: string;
+  totalAmount: number;
+}
+
+/**
+ * Plans the 48h-unpaid cron already sent an urgent reminder for (see
+ * checkUrgentPaymentReminders in api/cron/charge-installments) and that are
+ * STILL unpaid — a persistent dashboard banner, separate from the
+ * announcement itself, so it doesn't disappear just because the family
+ * viewed/read the announcement without actually paying.
+ */
+export async function getUrgentPaymentReminders(accountId: string): Promise<UrgentPaymentReminder[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('family_members')
+    .select(
+      'id, first_name, last_name, payment_plans(id, status, total_amount, urgent_reminder_sent_at, payments(amount, paid_at))',
+    )
+    .eq('family_account_id', accountId);
+
+  const out: UrgentPaymentReminder[] = [];
+  for (const m of (data ?? []) as any[]) {
+    for (const plan of m.payment_plans ?? []) {
+      if (plan.status !== 'active' || !plan.urgent_reminder_sent_at) continue;
+      const paid = (plan.payments ?? []).some((p: any) => p.paid_at);
+      if (paid) continue;
+      out.push({
+        planId: plan.id,
+        memberName: `${m.first_name} ${m.last_name}`,
+        totalAmount: Number(plan.total_amount),
+      });
+    }
+  }
+  return out;
+}

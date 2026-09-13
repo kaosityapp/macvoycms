@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
   } else {
     await admin
       .from('payment_intents')
-      .update({ status: 'failed', helcim_transaction_id: txn.transactionId })
+      .update({ status: 'failed', helcim_transaction_id: txn.transactionId, failure_reason: `Card ${txn.status.toLowerCase()}` })
       .eq('id', intent.id);
   }
 

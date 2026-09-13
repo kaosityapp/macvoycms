@@ -1,0 +1,1 @@
+alter table family_members add column pending_pricing_reminder_sent_at timestamptz;

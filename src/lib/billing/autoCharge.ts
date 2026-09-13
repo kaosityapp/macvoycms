@@ -149,7 +149,7 @@ export async function handleFailedCharge(
   reason: string,
 ): Promise<void> {
   if (intentId) {
-    await admin.from('payment_intents').update({ status: 'failed' }).eq('id', intentId);
+    await admin.from('payment_intents').update({ status: 'failed', failure_reason: reason }).eq('id', intentId);
   }
 
   const exhausted = attemptNumber >= 2;

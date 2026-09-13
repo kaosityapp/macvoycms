@@ -58,11 +58,16 @@ export async function GET(request: NextRequest) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
   }
+  const admin = createAdminClient();
+
+  // Independent of Helcim/billing — nags Debbie about stale "needs pricing"
+  // dancers regardless of whether online collection is even set up yet.
+  const pendingPricingReminders = await checkStalePendingPricing(admin);
+
   if (!isHelcimConfigured()) {
-    return NextResponse.json({ ok: true, skipped: 'Helcim not configured' });
+    return NextResponse.json({ ok: true, skipped: 'Helcim not configured', pendingPricingReminders });
   }
 
-  const admin = createAdminClient();
   const today = todayIso();
 
   const { data: plans } = await admin
@@ -141,8 +146,129 @@ export async function GET(request: NextRequest) {
 
   const achResults = await checkAchSettlements(admin);
   const cardReconciliation = await checkCardReconciliation(admin);
+  const urgentReminders = await checkUrgentPaymentReminders(admin);
 
-  return NextResponse.json({ ok: true, checked: (plans ?? []).length, results, achResults, cardReconciliation });
+  return NextResponse.json({
+    ok: true,
+    checked: (plans ?? []).length,
+    results,
+    achResults,
+    cardReconciliation,
+    urgentReminders,
+    pendingPricingReminders,
+  });
+}
+
+/**
+ * A dancer sitting in 'pending_pricing' for over 24 hours without Debbie
+ * approving (setting a plan) or deleting them gets flagged with one admin
+ * alert email — easy to miss on the admin overview otherwise. Sent once per
+ * dancer (pending_pricing_reminder_sent_at); if she later approves or
+ * deletes them, this naturally never fires again (status changes or the row
+ * is gone).
+ */
+async function checkStalePendingPricing(admin: AdminClient): Promise<{ id: string; outcome: string }[]> {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: stale } = await admin
+    .from('family_members')
+    .select('id, first_name, last_name, created_at')
+    .eq('status', 'pending_pricing')
+    .is('pending_pricing_reminder_sent_at', null)
+    .lte('created_at', cutoff);
+
+  const out: { id: string; outcome: string }[] = [];
+  for (const dancer of stale ?? []) {
+    const appliedDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(
+      new Date(dancer.created_at),
+    );
+    await sendAdminAlert(`Still needs pricing after 24h — ${dancer.first_name} ${dancer.last_name}`, [
+      `${dancer.first_name} ${dancer.last_name} registered directly (applied ${appliedDate}) and still hasn't been priced or removed, over 24 hours later.`,
+      `Set their price from the admin Dancers list, or delete their registration if it shouldn't have come in.`,
+    ]);
+    await admin
+      .from('family_members')
+      .update({ pending_pricing_reminder_sent_at: new Date().toISOString() })
+      .eq('id', dancer.id);
+    out.push({ id: dancer.id, outcome: 'reminder sent to admin' });
+  }
+
+  return out;
+}
+
+/**
+ * A family who hasn't paid anything at all within 48 hours of their plan
+ * being set up (Debbie approving/pricing them) gets one urgent reminder —
+ * email, an in-app announcement (so it shows in their dashboard
+ * announcements feed too), and a persistent banner on their dashboard (see
+ * getUrgentPaymentReminders in src/lib/dashboard.ts) until they pay. Sent
+ * once per plan (urgent_reminder_sent_at), not repeated on later runs.
+ */
+async function checkUrgentPaymentReminders(admin: AdminClient): Promise<{ planId: string; outcome: string }[]> {
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+  const { data: candidates } = await admin
+    .from('payment_plans')
+    .select(
+      'id, family_member_id, total_amount, created_at, family_member:family_members(first_name, last_name, family_account_id)',
+    )
+    .eq('status', 'active')
+    .is('urgent_reminder_sent_at', null)
+    .lte('created_at', cutoff);
+
+  const out: { planId: string; outcome: string }[] = [];
+  for (const plan of candidates ?? []) {
+    const { count } = await admin
+      .from('payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('payment_plan_id', plan.id)
+      .not('paid_at', 'is', null);
+    if ((count ?? 0) > 0) {
+      out.push({ planId: plan.id, outcome: 'already paid — no reminder needed' });
+      continue;
+    }
+
+    const member = (plan as any).family_member;
+    const dancerName = member ? `${member.first_name} ${member.last_name}` : 'Your dancer';
+    const familyAccountId: string | undefined = member?.family_account_id;
+
+    const { data: family } = familyAccountId
+      ? await admin.from('family_accounts').select('parent1_email').eq('id', familyAccountId).maybeSingle()
+      : { data: null };
+    const parentEmail = family?.parent1_email;
+
+    const payUrl = 'https://www.macvoyirishdance.com/dashboard/payments';
+    const subject = `URGENT: Payment due for ${dancerName} — MacVoy School of Irish Dance`;
+    const bodyLines = [
+      `${dancerName}'s registration was approved over 48 hours ago (total ${money(Number(plan.total_amount))}), and no payment has been made yet.`,
+      `Please log in and pay as soon as possible to keep their spot: ${payUrl}`,
+      `If you've already arranged payment another way, please contact macvoyirishdance@rogers.com so we can update your account.`,
+    ];
+
+    if (parentEmail) {
+      try {
+        await sendPlainEmail(parentEmail, subject, bodyLines);
+      } catch {
+        // Non-fatal — the in-app announcement below still gets created.
+      }
+    }
+
+    if (familyAccountId) {
+      await admin.from('announcements').insert({
+        subject,
+        body: bodyLines.join('\n\n'),
+        sender: 'debbie@macvoyirishdance.com',
+        audience_type: 'individual',
+        audience_ref: { family_member_ids: [plan.family_member_id] },
+        sent_at: new Date().toISOString(),
+      });
+    }
+
+    await admin.from('payment_plans').update({ urgent_reminder_sent_at: new Date().toISOString() }).eq('id', plan.id);
+    out.push({ planId: plan.id, outcome: `reminder sent to ${parentEmail ?? '(no email on file)'}` });
+  }
+
+  return out;
 }
 
 /**
@@ -234,7 +360,7 @@ async function checkCardReconciliation(admin: AdminClient): Promise<{ id: string
     } else {
       await admin
         .from('payment_intents')
-        .update({ status: 'failed', helcim_transaction_id: txn.transactionId })
+        .update({ status: 'failed', helcim_transaction_id: txn.transactionId, failure_reason: `Card ${txn.status.toLowerCase()}` })
         .eq('id', intent.id);
       out.push({ id: intent.id, outcome: `recovered — declined (${txn.status})` });
     }
@@ -328,7 +454,10 @@ async function reconcileAchFallback(
   }
 
   if (settledDeclined) {
-    await admin.from('payment_intents').update({ status: 'failed', helcim_transaction_id: achTxn.id }).eq('id', intent.id);
+    await admin
+      .from('payment_intents')
+      .update({ status: 'failed', helcim_transaction_id: achTxn.id, failure_reason: 'Bank withdrawal declined' })
+      .eq('id', intent.id);
     return `recovered — bank payment declined (statusAuth ${achTxn.statusAuth}, statusClearing ${achTxn.statusClearing})`;
   }
 
@@ -391,7 +520,10 @@ async function checkAchSettlements(admin: AdminClient): Promise<{ id: string; ou
     }
 
     if (settledDeclined) {
-      await admin.from('payment_intents').update({ status: 'failed' }).eq('id', intent.id);
+      await admin
+        .from('payment_intents')
+        .update({ status: 'failed', failure_reason: 'Bank withdrawal declined' })
+        .eq('id', intent.id);
       const dancerName = await dancerNameFor(admin, intent.family_member_id);
 
       if (intent.reference.startsWith('MV-AUTO-') && intent.payment_plan_id && intent.installment_index != null) {

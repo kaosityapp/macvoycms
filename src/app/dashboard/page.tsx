@@ -7,8 +7,9 @@ import {
   getUpcomingInstallments,
   getAnnouncements,
   getReadAnnouncementIds,
+  getUrgentPaymentReminders,
 } from '@/lib/dashboard';
-import { todayIso, addDays } from '@/lib/billing/dueDates';
+import { todayIso, addDays, toEasternDateIso } from '@/lib/billing/dueDates';
 import { money, formatDateLong, formatTime, formatDateShort, formatTimestamp } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -53,16 +54,17 @@ export default async function OverviewPage({
   const in30Days = addDays(today, 30);
 
   const supabase = await createClient();
-  const [enrollments, upcoming, announcements, readIds, pendingPricingRes] = await Promise.all([
+  const [enrollments, upcoming, announcements, readIds, pendingPricingRes, urgentReminders] = await Promise.all([
     getActiveEnrollments(account.id),
     getUpcomingInstallments(account.id, today),
     getAnnouncements(),
     getReadAnnouncementIds(account.id),
     supabase
       .from('family_members')
-      .select('first_name, last_name')
+      .select('first_name, last_name, created_at')
       .eq('family_account_id', account.id)
       .eq('status', 'pending_pricing'),
+    getUrgentPaymentReminders(account.id),
   ]);
   const pendingPricingDancers = pendingPricingRes.data ?? [];
 
@@ -92,11 +94,30 @@ export default async function OverviewPage({
         </div>
       )}
 
+      {urgentReminders.length > 0 && (
+        <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p className="font-semibold">Payment due</p>
+          {urgentReminders.map((r) => (
+            <p key={r.planId} className="mt-1">
+              {r.memberName}&apos;s payment of {money(r.totalAmount)} is still outstanding. Please{' '}
+              <Link href="/dashboard/payments" className="font-semibold underline">
+                pay now
+              </Link>{' '}
+              to keep their spot.
+            </p>
+          ))}
+        </div>
+      )}
+
       {pendingPricingDancers.length > 0 && (
         <div className="rounded-md bg-orange-50 px-4 py-3 text-sm text-orange-900">
-          {pendingPricingDancers.map((d) => `${d.first_name} ${d.last_name}`).join(', ')}
-          {pendingPricingDancers.length === 1 ? ' is' : ' are'} awaiting confirmation from the
-          school before payment is set up — we&apos;ll email you once it&apos;s ready.
+          {pendingPricingDancers.map((d) => (
+            <span key={`${d.first_name}-${d.last_name}-${d.created_at}`}>
+              {d.first_name} {d.last_name} (applied {formatDateShort(toEasternDateIso(d.created_at))}){' '}
+            </span>
+          ))}
+          {pendingPricingDancers.length === 1 ? 'is' : 'are'} awaiting confirmation from the school
+          before payment is set up — we&apos;ll email you once it&apos;s ready.
         </div>
       )}
 
