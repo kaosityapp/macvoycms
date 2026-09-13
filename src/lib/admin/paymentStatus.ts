@@ -100,7 +100,7 @@ export function summarizePayments(
 
   return {
     status: 'on_track',
-    label: next ? 'On track' : 'Scheduled',
+    label: next ? 'Payment up to date' : 'Scheduled',
     nextPaymentDate: next?.date ?? null,
     nextPaymentAmount: next?.amount ?? null,
     overdueAmount: null,

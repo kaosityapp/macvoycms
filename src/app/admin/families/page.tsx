@@ -4,14 +4,14 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments, type PayStatus } from '@/lib/admin/paymentStatus';
 import { todayIso } from '@/lib/billing/dueDates';
-import { money, formatDateShort } from '@/lib/format';
+import { money } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
 const BADGE: Record<PayStatus, string> = {
   paid: 'bg-green-100 text-green-800',
   overdue: 'bg-red-100 text-red-700',
-  on_track: 'bg-brand-pink/10 text-brand-pink',
+  on_track: 'bg-green-100 text-green-800',
   no_plan: 'bg-brand-ink/10 text-brand-ink/60',
 };
 
@@ -78,12 +78,6 @@ export default async function DancersPage({
       status,
       paymentLabel: summary.label,
       paymentBadge: BADGE[summary.status],
-      nextPayment:
-        summary.nextPaymentDate
-          ? `${formatDateShort(summary.nextPaymentDate)}${
-              summary.nextPaymentAmount != null ? ` · ${money(summary.nextPaymentAmount)}` : ''
-            }`
-          : '—',
     };
   });
 
@@ -107,7 +101,6 @@ export default async function DancersPage({
         status: 'pending' as Status,
         paymentLabel,
         paymentBadge,
-        nextPayment: '—',
       };
     }),
   );
@@ -167,7 +160,6 @@ export default async function DancersPage({
                 <th className="px-5 py-3 font-medium">Email</th>
                 <th className="px-5 py-3 font-medium">Status</th>
                 <th className="px-5 py-3 font-medium">Payment status</th>
-                <th className="px-5 py-3 font-medium">Next payment</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-ink/10">
@@ -189,7 +181,6 @@ export default async function DancersPage({
                       {r.paymentLabel}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-brand-ink/70">{r.nextPayment}</td>
                 </tr>
               ))}
             </tbody>

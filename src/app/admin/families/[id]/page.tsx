@@ -30,7 +30,7 @@ export const dynamic = 'force-dynamic';
 const BADGE: Record<PayStatus, string> = {
   paid: 'bg-green-100 text-green-800',
   overdue: 'bg-red-100 text-red-700',
-  on_track: 'bg-brand-pink/10 text-brand-pink',
+  on_track: 'bg-green-100 text-green-800',
   no_plan: 'bg-brand-ink/10 text-brand-ink/60',
 };
 
