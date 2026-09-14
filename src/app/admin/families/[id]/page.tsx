@@ -203,7 +203,12 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
         {/* Billing actions */}
         <div className="flex flex-wrap items-start gap-4 border-t border-brand-ink/10 pt-4">
           <RecordPaymentForm memberId={d.id} />
-          <CustomPlanForm memberId={d.id} familyId={family?.id ?? ''} defaultOpen={d.status === 'pending_pricing'} />
+          <CustomPlanForm
+            memberId={d.id}
+            familyId={family?.id ?? ''}
+            defaultOpen={d.status === 'pending_pricing'}
+            existingSchedule={activePlan ? installments : []}
+          />
           {activePlan && (
             <details className="rounded-md border border-red-200 p-3">
               <summary className="cursor-pointer text-sm font-medium text-red-700">Stop billing</summary>

@@ -11,6 +11,7 @@ import { todayIso, addDays } from '@/lib/billing/dueDates';
 import { sendPlainEmail } from '@/lib/integrations/adminAlert';
 import { money } from '@/lib/format';
 import { ADDON_OPTIONS, getAddon } from '@/lib/constants/addons';
+import type { Json } from '@/lib/types/database';
 
 export interface ActionState {
   error?: string;
@@ -91,7 +92,14 @@ export async function stopBilling(formData: FormData): Promise<void> {
   revalidateDancer(memberId);
 }
 
-/** Create a custom payment plan, superseding the dancer's active default plan. */
+/**
+ * Add installment(s) to a dancer's payment plan. The rows submitted here are
+ * ADDED to whatever's already on their current active plan (if any) — not a
+ * replacement — so adding a one-off extra charge doesn't wipe out the rest
+ * of their schedule. Internally this still supersedes the active plan row
+ * (payment_plans versions this way throughout the app), but the new row's
+ * installment_schedule is the OLD schedule plus the newly submitted rows.
+ */
 export async function createCustomPlan(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const memberId = String(formData.get('member_id') ?? '');
   const familyId = String(formData.get('family_id') ?? '');
@@ -99,23 +107,37 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
 
   const dates = formData.getAll('installment_date').map(String);
   const amounts = formData.getAll('installment_amount').map(String);
-  const schedule: { date: string; amount: number }[] = [];
+  const newRows: { date: string; amount: number }[] = [];
   for (let i = 0; i < dates.length; i++) {
     const date = dates[i]?.trim();
     const amount = Number(amounts[i]);
-    if (date && Number.isFinite(amount) && amount > 0) schedule.push({ date, amount });
+    if (date && Number.isFinite(amount) && amount > 0) newRows.push({ date, amount });
   }
-  if (schedule.length === 0) {
+  if (newRows.length === 0) {
     return { error: 'Add at least one installment with a date and amount.' };
   }
+
+  const supabase = await createClient();
+
+  const { data: existingPlan } = await supabase
+    .from('payment_plans')
+    .select('installment_schedule')
+    .eq('family_member_id', memberId)
+    .eq('status', 'active')
+    .maybeSingle();
+  const existingSchedule = Array.isArray(existingPlan?.installment_schedule)
+    ? (existingPlan.installment_schedule as { date: string; amount: number }[])
+    : [];
+
+  const schedule = [...existingSchedule, ...newRows].sort((a, b) => a.date.localeCompare(b.date));
 
   const totalField = Number(formData.get('total_amount'));
   const total = Number.isFinite(totalField) && totalField > 0
     ? totalField
-    : schedule.reduce((sum, i) => sum + i.amount, 0);
+    : schedule.reduce((sum, i) => sum + Number(i.amount), 0);
 
-  const supabase = await createClient();
-  // Supersede the current active plan.
+  // Supersede the current active plan row (versioning, not a data wipe — its
+  // schedule was just folded into the new row above).
   await supabase
     .from('payment_plans')
     .update({ status: 'stopped' })
@@ -126,7 +148,7 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
     family_member_id: memberId,
     plan_type: 'custom',
     total_amount: total,
-    installment_schedule: schedule,
+    installment_schedule: schedule as unknown as Json,
     status: 'active',
   });
   if (error) return { error: 'Could not create the custom plan.' };
