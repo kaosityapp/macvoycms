@@ -386,6 +386,7 @@ async function reconcileAchFallback(
     amount: number;
     category: string;
     reference: string;
+    created_at: string;
     save_card: boolean;
   },
 ): Promise<string | null> {
@@ -445,7 +446,7 @@ async function reconcileAchFallback(
         .eq('id', intent.payment_plan_id);
     }
 
-    await sendPaymentReceipt(admin, intent.family_member_id, Number(achTxn.amount || intent.amount), achTxn.id);
+    await sendPaymentReceipt(admin, intent.family_member_id, Number(achTxn.amount || intent.amount), achTxn.id, intent.created_at);
     await sendAdminAlert(`Missed bank payment confirmation recovered — ${dancerName}`, [
       `${dancerName}'s bank payment of ${money(Number(achTxn.amount || intent.amount))} settled successfully at Helcim, but we never recorded it — likely because they closed the page right after paying, before it could confirm here.`,
       `Recovered by the daily reconciliation check instead — no action needed, but worth knowing this happened.`,
@@ -479,7 +480,7 @@ async function reconcileAchFallback(
 async function checkAchSettlements(admin: AdminClient): Promise<{ id: string; outcome: string }[]> {
   const { data: settling } = await admin
     .from('payment_intents')
-    .select('id, family_member_id, payment_plan_id, installment_index, amount, category, reference, helcim_transaction_id')
+    .select('id, family_member_id, payment_plan_id, installment_index, amount, category, reference, created_at, helcim_transaction_id')
     .eq('status', 'settling');
 
   const out: { id: string; outcome: string }[] = [];
@@ -514,7 +515,7 @@ async function checkAchSettlements(admin: AdminClient): Promise<{ id: string; ou
         })
         .then(() => {}, () => {}); // idempotent — ignore unique-violation on a re-poll
       await admin.from('payment_intents').update({ status: 'completed' }).eq('id', intent.id);
-      await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.id);
+      await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.id, intent.created_at);
       out.push({ id: intent.id, outcome: 'settled — payment recorded' });
       continue;
     }
