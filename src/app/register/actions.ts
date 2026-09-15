@@ -11,6 +11,7 @@ import { sendAdminAlert, sendPlainEmail } from '@/lib/integrations/adminAlert';
 import type { ReferralSource } from '@/lib/types/database';
 import { sendMagicLink } from '@/lib/authLinks';
 import { verifyRegistrationForm, checkParentNames } from '@/lib/formGuard';
+import { findMatchingAddress } from '@/lib/emailIdentity';
 
 export interface RegistrationState {
   error?: string;
@@ -18,21 +19,40 @@ export interface RegistrationState {
 
 export interface EmailCheckResult {
   error?: string;
-  /** True if this email has a pre-filled registration waiting — a magic link
-   *  was just sent and the caller should show "check your email". */
+  /** True if this email has a pre-filled registration waiting. Affects only
+   *  the wording shown next — both paths now send a link and wait. */
   matched?: boolean;
+  /** A verification link went out; the caller should show "check your email". */
+  sent?: boolean;
+  /** This address already reaches an existing account, so the link signs them
+   *  in rather than starting a new registration. Changes the wording only. */
+  existingAccount?: boolean;
+  /** The address the link was actually sent to. Differs from what they typed
+   *  when a Gmail dot/plus variant resolved to an account on file. */
+  sentTo?: string;
 }
 
 const emailSchema = z.string().email('Enter a valid email address.');
 
 /**
- * Step 0 of registration: does this email have pre-filled dancer/class/
- * payment data from Debbie's import? If so, send a magic link (no password
- * exists yet for this login) and let /register/continue pick up from there.
- * If not, the caller falls through to the full registration form. Matches
- * either parent's email on the import — whichever parent actually completes
- * the confirmation becomes the account's login (see register/continue), so
- * it shouldn't matter which one Debbie listed as the primary contact.
+ * Step 0 of registration. Everyone verifies their email before they can reach
+ * the form; only the destination differs.
+ *
+ *  - Pre-filled from Debbie's import → /register/continue, which already knew
+ *    how to confirm their details and set a password. Matches either parent's
+ *    email on the import, since whichever one confirms becomes the login.
+ *  - Everyone else → /register, which now recognises a verified visitor with
+ *    no family account yet and shows them the full form.
+ *
+ * Verifying first is what stops automated signups: previously a script could
+ * POST the form and get a real family_accounts row with an address it didn't
+ * control. Of the eighteen bot accounts created in September, sixteen never
+ * confirmed their address at all, and the two that did were confirmed by the
+ * recipient's corporate mail scanner rather than by the bot — which the POST-
+ * only /auth/confirm page now prevents too.
+ *
+ * It also kills a long-standing support problem: a typo'd address used to
+ * create an account nobody could log into or receive mail at.
  */
 export async function checkRegistrationEmail(
   _prev: EmailCheckResult,
@@ -50,21 +70,59 @@ export async function checkRegistrationEmail(
     .eq('status', 'pending')
     .maybeSingle();
 
-  if (!pending) return { matched: false };
-
   const origin = (await headers()).get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
+
+  if (pending) {
+    const result = await sendMagicLink(email, origin, {
+      next: '/register/continue',
+      subject: 'Finish your MacVoy registration',
+      intro:
+        'Click below to verify your email and finish registering your dancer with MacVoy School of Irish Dance.',
+      cta: 'Finish my registration',
+    });
+    if (!result.ok) {
+      return { error: 'Could not send the verification email. Please try again.' };
+    }
+    return { matched: true, sent: true, sentTo: email };
+  }
+
+  // No pre-filled registration. If some other address already reaching this
+  // same mailbox has an account, send them to that one rather than starting a
+  // second — this is what stops one operator turning a single Gmail inbox into
+  // a dozen accounts via dotted variants.
+  const { data: accounts } = await admin
+    .from('family_accounts')
+    .select('id, parent1_email');
+  const duplicate = findMatchingAddress(
+    email,
+    (accounts ?? []).map((a) => ({ id: a.id, email: a.parent1_email })),
+  );
+  if (duplicate) {
+    const result = await sendMagicLink(duplicate.email, origin, {
+      next: '/register',
+      subject: 'Your MacVoy account',
+      intro:
+        'You already have a MacVoy School of Irish Dance account with this email address. Click below to sign in and add another dancer.',
+      cta: 'Sign in to my account',
+    });
+    if (!result.ok) {
+      return { error: 'Could not send the verification email. Please try again.' };
+    }
+    return { matched: false, sent: true, existingAccount: true, sentTo: duplicate.email };
+  }
+
   const result = await sendMagicLink(email, origin, {
-    next: '/register/continue',
-    subject: 'Finish your MacVoy registration',
+    next: '/register',
+    subject: 'Verify your email to register with MacVoy',
     intro:
-      'Click below to verify your email and finish registering your dancer with MacVoy School of Irish Dance.',
-    cta: 'Finish my registration',
+      'Click below to verify your email address and continue registering your dancer with MacVoy School of Irish Dance.',
+    cta: 'Continue my registration',
   });
   if (!result.ok) {
     return { error: 'Could not send the verification email. Please try again.' };
   }
 
-  return { matched: true };
+  return { matched: false, sent: true, sentTo: email };
 }
 
 const REFERRAL_VALUES: ReferralSource[] = [
@@ -179,17 +237,21 @@ export async function registerDancer(
   let guardian2Phone: string | null = null;
   let guardian2Email: string | null = null;
 
-  if (user) {
-    const { data: fa } = await admin
-      .from('family_accounts')
-      .select('id, parent1_email')
-      .or(`auth_user_id.eq.${user.id},parent2_auth_user_id.eq.${user.id}`)
-      .maybeSingle();
-    if (!fa) {
-      return { error: 'No family account is linked to your login. Please contact us.' };
-    }
-    familyAccountId = fa.id;
-    parentEmail = fa.parent1_email;
+  // Three cases: an established family adding a dancer; someone who has just
+  // verified their email and is registering for the first time; and nobody,
+  // which can only be a direct POST since the form is unreachable without a
+  // verified session.
+  const { data: existingAccount } = user
+    ? await admin
+        .from('family_accounts')
+        .select('id, parent1_email')
+        .or(`auth_user_id.eq.${user.id},parent2_auth_user_id.eq.${user.id}`)
+        .maybeSingle()
+    : { data: null };
+
+  if (user && existingAccount) {
+    familyAccountId = existingAccount.id;
+    parentEmail = existingAccount.parent1_email;
 
     if (dancerType === 'child') {
       guardian1Name = s(formData, 'guardian1Name');
@@ -203,6 +265,21 @@ export async function registerDancer(
       guardian2Email = s(formData, 'guardian2Email') || null;
     }
   } else {
+    if (!user) {
+      return {
+        error:
+          'Please verify your email before registering. Start again from the registration page and we will send you a link.',
+      };
+    }
+
+    // The verification link signed them in, so the session's address is the
+    // one they proved they own. Use it rather than the posted field, which is
+    // read-only in the form but still attacker-controlled on the wire.
+    const verifiedEmail = user.email;
+    if (!verifiedEmail) {
+      return { error: 'Your session is missing an email address. Please start again.' };
+    }
+
     const parent = parentSchema.safeParse({
       parent1Name: s(formData, 'parent1Name'),
       parent1Phone: s(formData, 'parent1Phone'),
@@ -235,23 +312,17 @@ export async function registerDancer(
     if (dancerType === 'child') {
       guardian1Name = parent1Name;
       guardian1Phone = parent1Phone;
-      guardian1Email = p.parent1Email;
+      guardian1Email = verifiedEmail;
       guardian2Name = p.parent2Name || null;
       guardian2Phone = p.parent2Phone || null;
       guardian2Email = p.parent2Email || null;
     }
 
-    const { data: signUp, error: signUpError } = await supabase.auth.signUp({
-      email: p.parent1Email,
-      password: p.password,
-    });
-    if (signUpError || !signUp.user) {
-      const already = signUpError?.message.toLowerCase().includes('already');
-      return {
-        error: already
-          ? 'An account with this email already exists — please log in first, then add your dancer.'
-          : (signUpError?.message ?? 'Could not create your account.'),
-      };
+    // They already exist in auth — the verification link signed them in — so
+    // this sets their password rather than creating a second account.
+    const { error: pwError } = await supabase.auth.updateUser({ password: p.password });
+    if (pwError) {
+      return { error: 'Could not set your password. Please try again.' };
     }
 
     const referral =
@@ -262,10 +333,10 @@ export async function registerDancer(
     const { data: fa, error: faError } = await admin
       .from('family_accounts')
       .insert({
-        auth_user_id: signUp.user.id,
+        auth_user_id: user.id,
         parent1_name: parent1Name,
         parent1_phone: parent1Phone || null,
-        parent1_email: p.parent1Email,
+        parent1_email: verifiedEmail,
         parent2_name: p.parent2Name || null,
         parent2_phone: p.parent2Phone || null,
         parent2_email: p.parent2Email || null,
@@ -276,7 +347,7 @@ export async function registerDancer(
     if (faError || !fa) return { error: 'Could not create your family account.' };
 
     familyAccountId = fa.id;
-    parentEmail = p.parent1Email;
+    parentEmail = verifiedEmail;
   }
 
   const m = member.data;

@@ -67,12 +67,15 @@ export function RegistrationForm({
   isLoggedIn,
   parentName,
   initialEmail,
+  emailIsVerified,
   formToken,
 }: {
   groups: Group[];
   isLoggedIn: boolean;
   parentName: string | null;
   initialEmail?: string;
+  /** They reached this form by clicking the link sent to initialEmail. */
+  emailIsVerified?: boolean;
   formToken: string;
 }) {
   const [state, action] = useActionState<RegistrationState, FormData>(registerDancer, {});
@@ -216,7 +219,7 @@ export function RegistrationForm({
               label={isChild ? 'Parent 1 email' : 'Email'}
               htmlFor="parent1Email"
               required
-              hint="This is your login."
+              hint={emailIsVerified ? 'Verified — this is your login.' : 'This is your login.'}
             >
               <input
                 id="parent1Email"
@@ -224,7 +227,11 @@ export function RegistrationForm({
                 type="email"
                 required
                 defaultValue={initialEmail}
-                className={inputClass}
+                readOnly={emailIsVerified}
+                aria-readonly={emailIsVerified}
+                className={
+                  emailIsVerified ? `${inputClass} bg-brand-ink/5 text-brand-ink/70` : inputClass
+                }
               />
             </Field>
             <Field label="Create a password" htmlFor="password" required hint="At least 8 characters.">

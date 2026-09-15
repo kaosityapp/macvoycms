@@ -51,6 +51,41 @@ export interface BatchRow {
 
 type Tab = 'late' | 'recent' | 'upcoming' | 'deposits';
 
+/**
+ * One-line "who is in this deposit". Reversals and refunds are named
+ * separately rather than dropped, because they're usually the reason a
+ * deposit doesn't match the payments you expected it to contain.
+ */
+function summarisePayers(items: BatchItemRow[]): string {
+  const label = (i: BatchItemRow) => i.dancerName ?? i.payerName ?? 'Unmatched payment';
+
+  // Net per payer, so someone whose payment was reversed is named once as
+  // cancelled out rather than appearing in both halves of the sentence.
+  const netByPayer = new Map<string, number>();
+  for (const item of items) {
+    const who = label(item);
+    netByPayer.set(who, (netByPayer.get(who) ?? 0) + item.amount);
+  }
+
+  const contributed: string[] = [];
+  const cancelled: string[] = [];
+  for (const [who, net] of netByPayer) {
+    // Fractions of a cent are rounding noise, not a real contribution.
+    if (Math.abs(net) < 0.005) cancelled.push(who);
+    else contributed.push(who);
+  }
+
+  const parts: string[] = [];
+  if (contributed.length > 0) parts.push(`Includes: ${contributed.join(', ')}`);
+  if (cancelled.length > 0) {
+    parts.push(
+      `${cancelled.join(', ')} ${cancelled.length === 1 ? 'was' : 'were'} reversed or refunded ` +
+        `and ${cancelled.length === 1 ? 'nets' : 'net'} to zero`,
+    );
+  }
+  return parts.join(' — ') || 'No itemised detail available for this batch.';
+}
+
 export function PaymentsTabs({
   late,
   recent,
@@ -264,6 +299,16 @@ export function PaymentsTabs({
                           )}
                         </td>
                       </tr>
+                      {/* Always-visible answer to "whose money is this?" — the
+                          expand below adds amounts and references, but the
+                          names shouldn't need a click. */}
+                      {b.items.length > 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-5 pb-2 pt-0 text-xs text-brand-ink/60">
+                            {summarisePayers(b.items)}
+                          </td>
+                        </tr>
+                      )}
                       {open && (
                         <tr className="bg-brand-ink/[0.02]">
                           <td colSpan={5} className="px-5 py-3">
