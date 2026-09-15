@@ -9,6 +9,7 @@ import { POLICIES } from '@/lib/consents/policies';
 import { getAddon } from '@/lib/constants/addons';
 import { sendAdminAlert, sendPlainEmail } from '@/lib/integrations/adminAlert';
 import type { ReferralSource } from '@/lib/types/database';
+import { sendMagicLink } from '@/lib/authLinks';
 
 export interface RegistrationState {
   error?: string;
@@ -51,13 +52,14 @@ export async function checkRegistrationEmail(
   if (!pending) return { matched: false };
 
   const origin = (await headers()).get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: `${origin}/auth/callback?next=/register/continue` },
+  const result = await sendMagicLink(email, origin, {
+    next: '/register/continue',
+    subject: 'Finish your MacVoy registration',
+    intro:
+      'Click below to verify your email and finish registering your dancer with MacVoy School of Irish Dance.',
+    cta: 'Finish my registration',
   });
-  if (error) {
-    console.error('signInWithOtp failed:', error);
+  if (!result.ok) {
     return { error: 'Could not send the verification email. Please try again.' };
   }
 

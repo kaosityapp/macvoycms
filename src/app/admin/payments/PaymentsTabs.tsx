@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import Link from 'next/link';
 import { money, formatDateShort, formatTimestamp } from '@/lib/format';
 
@@ -28,6 +28,17 @@ export interface UpcomingRow {
   amount: number;
 }
 
+export interface BatchItemRow {
+  invoiceNumber: string | null;
+  /** Dancer this payment belongs to, matched from our own records. */
+  dancerName: string | null;
+  /** Name on the card, as a fallback when we can't match the invoice. */
+  payerName: string | null;
+  amount: number;
+  type: string;
+  date: string | null;
+}
+
 export interface BatchRow {
   id: string;
   method: 'card' | 'ach';
@@ -35,6 +46,7 @@ export interface BatchRow {
   amount: number;
   dateClosed: string | null;
   estimatedDepositDate: string | null;
+  items: BatchItemRow[];
 }
 
 type Tab = 'late' | 'recent' | 'upcoming' | 'deposits';
@@ -53,6 +65,7 @@ export function PaymentsTabs({
   batches: BatchRow[];
 }) {
   const [tab, setTab] = useState<Tab>(late.length > 0 ? 'late' : 'recent');
+  const [openBatch, setOpenBatch] = useState<string | null>(null);
 
   const lateTotal = late.reduce((sum, l) => sum + l.amount, 0);
   const recentTotal = recent.reduce((sum, r) => sum + r.amount, 0);
@@ -209,33 +222,116 @@ export function PaymentsTabs({
                   <th className="px-5 py-2 font-medium">Batch date</th>
                   <th className="px-5 py-2 font-medium">Amount</th>
                   <th className="px-5 py-2 font-medium">Est. bank deposit date</th>
+                  <th className="px-5 py-2 text-right font-medium">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-ink/10">
                 {batches.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-5 py-4 text-brand-ink/60">
+                    <td colSpan={5} className="px-5 py-4 text-brand-ink/60">
                       No batches yet.
                     </td>
                   </tr>
                 )}
-                {batches.map((b) => (
-                  <tr key={`${b.method}-${b.id}`}>
-                    <td className="px-5 py-2 text-brand-ink">
-                      {b.method === 'card' ? 'Credit card' : 'Bank (ACH/EFT)'}
-                    </td>
-                    <td className="px-5 py-2 text-brand-ink/70">
-                      {b.dateClosed ? formatDateShort(b.dateClosed.slice(0, 10)) : '—'}
-                    </td>
-                    <td className="px-5 py-2 font-medium text-brand-ink">{money(b.amount)}</td>
-                    <td className="px-5 py-2 text-brand-ink/70">
-                      {b.estimatedDepositDate ? formatDateShort(b.estimatedDepositDate) : '—'}
-                    </td>
-                  </tr>
-                ))}
+                {batches.map((b) => {
+                  const key = `${b.method}-${b.id}`;
+                  const open = openBatch === key;
+                  return (
+                    <Fragment key={key}>
+                      <tr>
+                        <td className="px-5 py-2 text-brand-ink">
+                          {b.method === 'card' ? 'Credit card' : 'Bank (ACH/EFT)'}
+                        </td>
+                        <td className="px-5 py-2 text-brand-ink/70">
+                          {b.dateClosed ? formatDateShort(b.dateClosed.slice(0, 10)) : '—'}
+                        </td>
+                        <td className="px-5 py-2 font-medium text-brand-ink">{money(b.amount)}</td>
+                        <td className="px-5 py-2 text-brand-ink/70">
+                          {b.estimatedDepositDate ? formatDateShort(b.estimatedDepositDate) : '—'}
+                        </td>
+                        <td className="px-5 py-2 text-right">
+                          {b.items.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setOpenBatch(open ? null : key)}
+                              aria-expanded={open}
+                              className="text-sm font-medium text-brand-pink hover:underline"
+                            >
+                              {open ? 'Hide' : `What's included (${b.items.length})`}
+                            </button>
+                          ) : (
+                            <span className="text-sm text-brand-ink/40">—</span>
+                          )}
+                        </td>
+                      </tr>
+                      {open && (
+                        <tr className="bg-brand-ink/[0.02]">
+                          <td colSpan={5} className="px-5 py-3">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-left text-brand-ink/50">
+                                  <th className="py-1 font-medium">Date</th>
+                                  <th className="py-1 font-medium">Who</th>
+                                  <th className="py-1 font-medium">Reference</th>
+                                  <th className="py-1 text-right font-medium">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {b.items.map((it, i) => (
+                                  <tr key={`${it.invoiceNumber ?? 'x'}-${i}`}>
+                                    <td className="py-1 text-brand-ink/70">
+                                      {it.date ? formatDateShort(it.date.slice(0, 10)) : '—'}
+                                    </td>
+                                    <td className="py-1 text-brand-ink">
+                                      <span>{it.dancerName ?? it.payerName ?? 'Unmatched'}</span>
+                                      {it.type === 'reverse' || it.type === 'refund' ? (
+                                        <span className="ml-2 text-xs text-brand-ink/50">
+                                          {it.type === 'refund' ? '(refunded)' : '(reversed)'}
+                                        </span>
+                                      ) : null}
+                                      {it.dancerName && it.payerName && it.dancerName !== it.payerName ? (
+                                        <span className="ml-2 text-xs text-brand-ink/50">
+                                          paid by {it.payerName}
+                                        </span>
+                                      ) : null}
+                                    </td>
+                                    <td className="py-1 font-mono text-xs text-brand-ink/50">
+                                      {it.invoiceNumber ?? '—'}
+                                    </td>
+                                    <td
+                                      className={`py-1 text-right font-medium ${
+                                        it.amount < 0 ? 'text-brand-ink/50' : 'text-brand-ink'
+                                      }`}
+                                    >
+                                      {money(it.amount)}
+                                    </td>
+                                  </tr>
+                                ))}
+                                <tr className="border-t border-brand-ink/10">
+                                  <td colSpan={3} className="py-1 text-brand-ink/60">
+                                    Batch total
+                                  </td>
+                                  <td className="py-1 text-right font-semibold text-brand-ink">
+                                    {money(b.amount)}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          <p className="text-xs text-brand-ink/50">
+            A deposit is the <em>total</em> of everything in that batch, so it rarely matches any
+            one person&apos;s bill — open &ldquo;What&apos;s included&rdquo; to see the payments
+            behind it. Amounts are what each family was charged including the processing fee, and
+            anything reversed or refunded is subtracted.
+          </p>
           <p className="text-xs text-brand-ink/50">
             Deposit dates above are an estimate based on Helcim&apos;s standard payout timeline
             (Helcim&apos;s API doesn&apos;t report the actual deposit date) — actual timing can

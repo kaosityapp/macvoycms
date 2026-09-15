@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { sendPasswordResetLink } from '@/lib/authLinks';
 
 export interface AuthState {
   error?: string;
@@ -42,12 +43,12 @@ export async function requestPasswordReset(
   if (!parsed.success) return { error: parsed.error.errors[0].message };
 
   const origin = (await headers()).get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
-  const supabase = await createClient();
-  await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/reset-password`,
-  });
+  const result = await sendPasswordResetLink(email, origin);
+  if (!result.ok && result.reason === 'send_failed') {
+    return { error: "We couldn't send the reset email just now. Please try again in a minute." };
+  }
 
-  // Always report success — don't reveal whether an email is registered.
+  // Unknown address still reports success — don't reveal whether an email is registered.
   return {
     message: 'If that email is registered, a password reset link is on its way.',
   };
@@ -64,7 +65,7 @@ export async function updatePassword(_prev: AuthState, formData: FormData): Prom
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: 'Your reset link has expired. Request a new one.' };
+  if (!user) return { error: 'Your reset link has expired. Request a new one from the "Forgot password?" link.' };
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };

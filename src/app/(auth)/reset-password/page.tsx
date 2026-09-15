@@ -1,48 +1,37 @@
-'use client';
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { getSessionUser } from '@/lib/auth';
+import { ResetPasswordForm } from './ResetPasswordForm';
 
-import { useActionState, useEffect } from 'react';
-import { updatePassword, type AuthState } from '../actions';
-import { Field, FormError, SubmitButton, inputClass } from '@/components/ui';
+export const metadata: Metadata = { title: 'Set your password' };
 
-export default function ResetPasswordPage() {
-  const [state, action] = useActionState<AuthState, FormData>(updatePassword, {});
-  useEffect(() => {
-    document.title = 'Set your password — MacVoy School of Irish Dance';
-  }, []);
+export default async function ResetPasswordPage() {
+  const user = await getSessionUser();
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-brand-pink">Choose a new password</h1>
-        <p className="mt-1 text-sm text-brand-ink/70">
-          Enter a new password for your account.
-        </p>
+  // The reset link signs the user in before landing here. No session means
+  // the link was expired, already used, or never completed — say so instead
+  // of showing a form that can't succeed.
+  if (!user) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-bold text-brand-pink">This reset link isn&apos;t valid</h1>
+          <p className="mt-1 text-sm text-brand-ink/70">
+            It may have expired or already been used. Reset links work once and last about an hour.
+          </p>
+        </div>
+        <Link
+          href="/forgot-password"
+          className="inline-block rounded-md bg-brand-pink px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+        >
+          Request a new reset link
+        </Link>
+        <Link href="/login" className="block text-sm text-brand-pink hover:underline">
+          Back to login
+        </Link>
       </div>
+    );
+  }
 
-      <form action={action} className="space-y-4">
-        <FormError message={state.error} />
-        <Field label="New password" htmlFor="password" required hint="At least 8 characters.">
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            required
-            className={inputClass}
-          />
-        </Field>
-        <Field label="Confirm password" htmlFor="confirm" required>
-          <input
-            id="confirm"
-            name="confirm"
-            type="password"
-            autoComplete="new-password"
-            required
-            className={inputClass}
-          />
-        </Field>
-        <SubmitButton pendingText="Saving…">Save password</SubmitButton>
-      </form>
-    </div>
-  );
+  return <ResetPasswordForm />;
 }

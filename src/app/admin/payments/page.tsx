@@ -120,12 +120,46 @@ export default async function AdminPaymentsPage() {
         listCardBatchesWithAmounts(),
         listAchBatchesWithAmounts(),
       ]);
-      batches = [...cardBatches, ...achBatches].sort((a, b) =>
+      const summaries = [...cardBatches, ...achBatches].sort((a, b) =>
         (b.dateClosed ?? '').localeCompare(a.dateClosed ?? ''),
       );
-    } catch {
+
+      // Helcim only knows our invoice number (payment_intents.reference) and,
+      // for cards, the cardholder's name — neither of which is the dancer the
+      // money is for. Resolve references to dancer names so a deposit can be
+      // traced without cross-checking Helcim by hand.
+      const references = summaries
+        .flatMap((b) => b.items.map((i) => i.invoiceNumber))
+        .filter((r): r is string => Boolean(r));
+      const nameByReference = new Map<string, string>();
+      if (references.length > 0) {
+        const { data: refRows } = await supabase
+          .from('payment_intents')
+          .select('reference, family_members(first_name, last_name)')
+          .in('reference', Array.from(new Set(references)));
+        for (const row of (refRows ?? []) as any[]) {
+          if (row.family_members) {
+            nameByReference.set(
+              row.reference,
+              `${row.family_members.first_name} ${row.family_members.last_name}`,
+            );
+          }
+        }
+      }
+
+      batches = summaries.map((b) => ({
+        ...b,
+        items: b.items.map((i) => ({
+          ...i,
+          dancerName: i.invoiceNumber ? (nameByReference.get(i.invoiceNumber) ?? null) : null,
+        })),
+      }));
+    } catch (err) {
       // Non-fatal — the rest of the page (late/recent/upcoming) still works
-      // even if Helcim's batch endpoints are briefly unavailable.
+      // even if Helcim's batch endpoints are briefly unavailable. Log it
+      // though: silently swallowing left an empty "Bank deposits" tab looking
+      // like "no deposits yet" with no way to tell the difference.
+      console.error('Bank deposits: could not load Helcim batches —', (err as Error).message);
     }
   }
 

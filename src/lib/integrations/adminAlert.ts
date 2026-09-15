@@ -13,6 +13,8 @@
  */
 
 const RESEND_API = 'https://api.resend.com/emails';
+/** The address the school actually reads — same one shown on the Contact page. */
+const SCHOOL_CONTACT_EMAIL = 'macvoyirishdance@rogers.com';
 
 export function isAdminAlertConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY && process.env.ADMIN_ALERT_EMAILS);
@@ -28,16 +30,21 @@ export async function sendPlainEmail(
   subject: string,
   bodyLines: string[],
   opts?: { replyTo?: string },
-): Promise<void> {
+): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const recipients = Array.isArray(to) ? to : [to];
   if (!apiKey || recipients.length === 0) {
     console.error('Email not sent (RESEND_API_KEY missing or no recipient):', subject);
-    return;
+    return false;
   }
 
   const from = process.env.ADMIN_ALERT_FROM || 'MacVoy School of Irish Dance <alerts@macvoyirishdance.com>';
-  const html = bodyLines.map((line) => `<p>${line}</p>`).join('\n');
+  // Replies to the sending address go nowhere, so say so — unless the caller
+  // set a reply-to (e.g. the contact form, where replying is the whole point).
+  const footer = opts?.replyTo
+    ? ''
+    : `\n<p style="margin-top:24px;font-size:12px;color:#6b7280">This is an automated email &mdash; please do not reply. To reach the school, email <a href="mailto:${SCHOOL_CONTACT_EMAIL}">${SCHOOL_CONTACT_EMAIL}</a>.</p>`;
+  const html = bodyLines.map((line) => `<p>${line}</p>`).join('\n') + footer;
 
   try {
     const res = await fetch(RESEND_API, {
@@ -57,9 +64,12 @@ export async function sendPlainEmail(
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       console.error(`Email send failed (${res.status}): ${detail}`);
+      return false;
     }
+    return true;
   } catch (err) {
     console.error('Email send failed:', (err as Error).message);
+    return false;
   }
 }
 

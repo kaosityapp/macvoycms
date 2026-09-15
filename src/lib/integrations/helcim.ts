@@ -277,17 +277,27 @@ export interface AchTransaction {
   statusClearing: number | null;
 }
 
-/** Poll a bank transaction's current settlement status. */
+/**
+ * Poll a bank transaction's current settlement status.
+ *
+ * NOTE the payload shape: GET /ach/transactions/{id} wraps the record in a
+ * `transaction` key, while the *list* endpoint returns a flat `transactions`
+ * array. Reading the single-fetch response as if it were flat silently yields
+ * statusAuth/statusClearing = null, which reads as "not settled yet" forever —
+ * a settled payment then never gets recorded and the family shows as overdue
+ * indefinitely. Tolerate both shapes so neither spelling can regress.
+ */
 export async function getAchTransaction(id: string): Promise<AchTransaction> {
   const data = await helcimFetch(`/ach/transactions/${id}`, { method: 'GET' });
+  const t = data?.transaction ?? data;
   return {
-    id: String(data.id ?? id),
-    bankAccountId: data.bankAccountId != null ? String(data.bankAccountId) : null,
-    amount: Number(data.amount ?? 0),
-    invoiceNumber: data.invoiceNumber ? String(data.invoiceNumber) : undefined,
-    customerCode: data.customerCode ? String(data.customerCode) : undefined,
-    statusAuth: data.statusAuth != null ? Number(data.statusAuth) : null,
-    statusClearing: data.statusClearing != null ? Number(data.statusClearing) : null,
+    id: String(t.id ?? id),
+    bankAccountId: t.bankAccountId != null ? String(t.bankAccountId) : null,
+    amount: Number(t.amount ?? 0),
+    invoiceNumber: t.invoiceNumber ? String(t.invoiceNumber) : undefined,
+    customerCode: t.customerCode ? String(t.customerCode) : undefined,
+    statusAuth: t.statusAuth != null ? Number(t.statusAuth) : null,
+    statusClearing: t.statusClearing != null ? Number(t.statusClearing) : null,
   };
 }
 
@@ -376,6 +386,19 @@ export function isHelcimWebhookConfigured(): boolean {
 // rather than presenting it as authoritative.
 // ---------------------------------------------------------------------------
 
+/** One transaction inside a batch, so a deposit can be traced to who paid. */
+export interface BatchItem {
+  /** Our reference (Helcim invoiceNumber) — maps back to payment_intents.reference. */
+  invoiceNumber: string | null;
+  /** Name on the card, when Helcim reports one. Blank for bank payments. */
+  payerName: string | null;
+  /** Signed: refunds/reversals are negative so the items sum to the batch total. */
+  amount: number;
+  /** 'purchase' | 'reverse' | 'refund' | 'withdrawal' … as Helcim labels it. */
+  type: string;
+  date: string | null;
+}
+
 export interface BatchSummary {
   id: string;
   method: 'card' | 'ach';
@@ -384,6 +407,8 @@ export interface BatchSummary {
   dateClosed: string | null;
   /** Our estimate only — see module doc comment above. */
   estimatedDepositDate: string | null;
+  /** What made up this batch. Empty when Helcim reports no per-item detail. */
+  items: BatchItem[];
 }
 
 /** Add `n` business days (Mon–Fri only) to a 'YYYY-MM-DD HH:mm:ss'-ish date string. */
@@ -418,10 +443,22 @@ export async function listCardBatchesWithAmounts(): Promise<BatchSummary[]> {
   const txns: any[] = Array.isArray(txnData) ? txnData : Array.isArray(txnData?.data) ? txnData.data : [];
 
   const totalsByBatch = new Map<number, number>();
+  const itemsByBatch = new Map<number, BatchItem[]>();
   for (const t of txns) {
+    // Declined attempts never reach the batch, so they must not be listed as
+    // part of a deposit — otherwise the items wouldn't sum to the total.
     if (t.status !== 'APPROVED' || t.cardBatchId == null) continue;
-    const sign = t.type === 'reverse' ? -1 : 1;
-    totalsByBatch.set(t.cardBatchId, (totalsByBatch.get(t.cardBatchId) ?? 0) + sign * Number(t.amount || 0));
+    const sign = t.type === 'reverse' || t.type === 'refund' ? -1 : 1;
+    const signed = sign * Number(t.amount || 0);
+    totalsByBatch.set(t.cardBatchId, (totalsByBatch.get(t.cardBatchId) ?? 0) + signed);
+    if (!itemsByBatch.has(t.cardBatchId)) itemsByBatch.set(t.cardBatchId, []);
+    itemsByBatch.get(t.cardBatchId)!.push({
+      invoiceNumber: t.invoiceNumber ? String(t.invoiceNumber) : null,
+      payerName: t.cardHolderName ? String(t.cardHolderName).trim() : null,
+      amount: signed,
+      type: String(t.type ?? 'purchase'),
+      date: t.dateCreated ?? null,
+    });
   }
 
   return closed.map((b) => ({
@@ -431,6 +468,7 @@ export async function listCardBatchesWithAmounts(): Promise<BatchSummary[]> {
     amount: totalsByBatch.get(b.id) ?? 0,
     dateClosed: b.dateClosed ?? null,
     estimatedDepositDate: b.dateClosed ? addBusinessDays(b.dateClosed, 2) : null,
+    items: (itemsByBatch.get(b.id) ?? []).sort((x, y) => (x.date ?? '').localeCompare(y.date ?? '')),
   }));
 }
 
@@ -442,14 +480,43 @@ export async function listCardBatchesWithAmounts(): Promise<BatchSummary[]> {
 export async function listAchBatchesWithAmounts(): Promise<BatchSummary[]> {
   const data = await helcimFetch('/ach/batches', { method: 'GET' });
   const batches: any[] = Array.isArray(data?.batches) ? data.batches : [];
-  return batches
-    .filter((b) => b.dateClosed)
-    .map((b) => ({
-      id: String(b.batchId),
-      method: 'ach' as const,
-      batchNumber: null,
-      amount: Number(b.amountWithdrawals ?? 0),
-      dateClosed: b.dateClosed ?? null,
-      estimatedDepositDate: b.dateClosed ? addBusinessDays(b.dateClosed, 5) : null,
-    }));
+  const closed = batches.filter((b) => b.dateClosed && !String(b.dateClosed).startsWith('0000'));
+  if (closed.length === 0) return [];
+
+  // /ach/batches carries totals but no line items, so pull the transactions
+  // and group them by batchId to show what each deposit was made of.
+  const itemsByBatch = new Map<string, BatchItem[]>();
+  try {
+    const from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const txnData = await helcimFetch(
+      `/ach/transactions?dateCreatedFrom=${encodeURIComponent(from)}&limit=300`,
+      { method: 'GET' },
+    );
+    for (const t of Array.isArray(txnData?.transactions) ? txnData.transactions : []) {
+      if (t.batchId == null) continue;
+      const key = String(t.batchId);
+      if (!itemsByBatch.has(key)) itemsByBatch.set(key, []);
+      itemsByBatch.get(key)!.push({
+        invoiceNumber: t.invoiceNumber ? String(t.invoiceNumber) : null,
+        payerName: null, // Helcim reports no name on bank transactions.
+        amount: Number(t.amount ?? 0),
+        type: 'withdrawal',
+        date: t.dateCreated ?? null,
+      });
+    }
+  } catch {
+    // Non-fatal — batch totals still render, just without the breakdown.
+  }
+
+  return closed.map((b) => ({
+    id: String(b.batchId),
+    method: 'ach' as const,
+    batchNumber: null,
+    amount: Number(b.amountWithdrawals ?? 0),
+    dateClosed: b.dateClosed ?? null,
+    estimatedDepositDate: b.dateClosed ? addBusinessDays(b.dateClosed, 5) : null,
+    items: (itemsByBatch.get(String(b.batchId)) ?? []).sort((x, y) =>
+      (x.date ?? '').localeCompare(y.date ?? ''),
+    ),
+  }));
 }

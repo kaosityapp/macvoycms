@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sendMagicLink } from '@/lib/authLinks';
 
 export interface RequestState {
   error?: string;
@@ -35,10 +36,12 @@ export async function requestParent2Login(_prev: RequestState, formData: FormDat
   // file as somebody's Parent 2 (same reasoning as the password-reset flow).
   if (family) {
     const origin = (await headers()).get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
-    const supabase = await createClient();
-    await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${origin}/auth/callback?next=/parent2-signup/confirm` },
+    await sendMagicLink(email, origin, {
+      next: '/parent2-signup/confirm',
+      subject: 'Set up your MacVoy login',
+      intro:
+        "You're listed as a second parent on a MacVoy School of Irish Dance family account. Click below to set up your own login.",
+      cta: 'Set up my login',
     });
   }
 

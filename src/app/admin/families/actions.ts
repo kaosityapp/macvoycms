@@ -12,6 +12,7 @@ import { sendPlainEmail } from '@/lib/integrations/adminAlert';
 import { money } from '@/lib/format';
 import { ADDON_OPTIONS, getAddon } from '@/lib/constants/addons';
 import type { Json } from '@/lib/types/database';
+import { sendPasswordResetLink } from '@/lib/authLinks';
 
 export interface ActionState {
   error?: string;
@@ -353,12 +354,16 @@ export async function sendPasswordReset(_prev: ActionState, formData: FormData):
   const email = String(formData.get('email') ?? '').trim();
   if (!email) return { error: 'Missing email.' };
 
-  const supabase = await createClient();
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? '';
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/reset-password`,
-  });
-  if (error) return { error: 'Could not send the reset email.' };
+  const result = await sendPasswordResetLink(email, origin);
+  if (!result.ok) {
+    return {
+      error:
+        result.reason === 'not_found'
+          ? `No login exists for ${email}.`
+          : 'Could not send the reset email.',
+    };
+  }
   return { success: `Password reset email sent to ${email}.` };
 }
 
