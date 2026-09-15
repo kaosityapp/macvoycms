@@ -10,6 +10,7 @@ import { getAddon } from '@/lib/constants/addons';
 import { sendAdminAlert, sendPlainEmail } from '@/lib/integrations/adminAlert';
 import type { ReferralSource } from '@/lib/types/database';
 import { sendMagicLink } from '@/lib/authLinks';
+import { verifyRegistrationForm, checkParentNames } from '@/lib/formGuard';
 
 export interface RegistrationState {
   error?: string;
@@ -116,6 +117,16 @@ export async function registerDancer(
   const supabase = await createClient();
   const admin = createAdminClient();
 
+  // --- spam guard ----------------------------------------------------------
+  // Runs before anything is written. Automated signups were creating ~40% of
+  // all family accounts; see src/lib/formGuard.ts for the signature and why
+  // this isn't a CAPTCHA.
+  const guard = verifyRegistrationForm(formData);
+  if (!guard.ok) {
+    console.warn(`Registration rejected by spam guard: ${guard.logDetail}`);
+    return { error: guard.reason };
+  }
+
   // --- dancer fields -------------------------------------------------------
   const member = memberSchema.safeParse({
     firstName: s(formData, 'firstName'),
@@ -204,6 +215,12 @@ export async function registerDancer(
     });
     if (!parent.success) return { error: parent.error.errors[0].message };
     const p = parent.data;
+
+    const nameCheck = checkParentNames([p.parent1Name, p.parent2Name]);
+    if (nameCheck) {
+      console.warn(`Registration rejected by spam guard: ${nameCheck.logDetail}`);
+      return { error: nameCheck.reason };
+    }
 
     // 'Adult' registrants are their own account holder — reuse the dancer's
     // own name/phone (collected once, in the Dancer section) instead of

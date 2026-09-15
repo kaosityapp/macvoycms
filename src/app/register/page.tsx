@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCurrentSeason, getSeasonClassesGrouped, excludeFromOpenRegistration } from '@/lib/season';
 import { getFamilyAccount } from '@/lib/auth';
+import { issueFormToken } from '@/lib/formGuard';
 import { RegistrationFlow } from './RegistrationFlow';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,7 @@ export default async function RegisterPage() {
         groups={groups}
         isLoggedIn={Boolean(account)}
         parentName={account?.parent1_name ?? null}
+        formToken={issueFormToken()}
       />
     </main>
   );

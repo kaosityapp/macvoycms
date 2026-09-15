@@ -29,10 +29,13 @@ export function RegistrationFlow({
   groups,
   isLoggedIn,
   parentName,
+  formToken,
 }: {
   groups: Group[];
   isLoggedIn: boolean;
   parentName: string | null;
+  /** Signed at page render; proves the form came from us. See lib/formGuard.ts. */
+  formToken: string;
 }) {
   // Adding a dancer to an already-logged-in account skips the email gate —
   // that's not a "which family is this" question, it's already known.
@@ -83,6 +86,7 @@ export function RegistrationFlow({
       isLoggedIn={isLoggedIn}
       parentName={parentName}
       initialEmail={email}
+      formToken={formToken}
     />
   );
 }

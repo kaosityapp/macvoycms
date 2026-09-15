@@ -5,6 +5,7 @@ import { registerDancer, type RegistrationState } from './actions';
 import { POLICIES } from '@/lib/consents/policies';
 import { ADDON_OPTIONS } from '@/lib/constants/addons';
 import { Field, FormError, SubmitButton, inputClass } from '@/components/ui';
+import { HONEYPOT_FIELD, FORM_TOKEN_FIELD } from '@/lib/formGuardFields';
 
 interface ClassItem {
   id: string;
@@ -66,11 +67,13 @@ export function RegistrationForm({
   isLoggedIn,
   parentName,
   initialEmail,
+  formToken,
 }: {
   groups: Group[];
   isLoggedIn: boolean;
   parentName: string | null;
   initialEmail?: string;
+  formToken: string;
 }) {
   const [state, action] = useActionState<RegistrationState, FormData>(registerDancer, {});
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -114,6 +117,22 @@ export function RegistrationForm({
 
   return (
     <form action={action} className="space-y-10">
+      {/* Spam guard — see lib/formGuard.ts. The honeypot is positioned off
+          screen rather than display:none, because some scripts skip hidden
+          inputs; a person never sees or tabs to it, a script fills it. */}
+      <input type="hidden" name={FORM_TOKEN_FIELD} value={formToken} />
+      <div aria-hidden="true" className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden">
+        <label htmlFor={HONEYPOT_FIELD}>Leave this field blank</label>
+        <input
+          id={HONEYPOT_FIELD}
+          name={HONEYPOT_FIELD}
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          defaultValue=""
+        />
+      </div>
+
       {/* ---- Account / parent ---- */}
       {isLoggedIn ? (
         <section className="space-y-4">
