@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdmin } from '@/lib/auth';
 import { recalcDefaultPlanForMember } from '@/lib/admin/billing';
 import { findDueInstallment, attemptInstallmentCharge } from '@/lib/billing/autoCharge';
+import { withCardFee, cardFeeOn } from '@/lib/billing/cardFee';
 import { todayIso, addDays } from '@/lib/billing/dueDates';
 import { sendPlainEmail } from '@/lib/integrations/adminAlert';
 import { money } from '@/lib/format';
@@ -353,7 +354,13 @@ export async function retryInstallmentNow(_prev: ActionState, formData: FormData
     return { success: `Bank withdrawal of ${money(due.amount)} started — settlement can take a few days; we'll email a receipt once confirmed.` };
   }
   if (outcome.approved) {
-    return { success: `Charged ${money(due.amount)} — the receipt will appear once Helcim confirms it.` };
+    const charged = plan.stored_card_token ? withCardFee(due.amount) : due.amount;
+    const feeNote = plan.stored_card_token
+      ? ` (${money(due.amount)} + ${money(cardFeeOn(due.amount))} card fee)`
+      : '';
+    return {
+      success: `Charged ${money(charged)}${feeNote} — the receipt will appear once Helcim confirms it.`,
+    };
   }
   // Only a real decline is the family's problem. Anything else never reached
   // the card, so say what actually broke instead of sending Debbie off to ask

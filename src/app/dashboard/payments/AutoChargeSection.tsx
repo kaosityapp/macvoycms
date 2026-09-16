@@ -4,7 +4,9 @@ import { useState, useTransition } from 'react';
 import { requestAutoChargeCancellation } from './actions';
 import type { AutoChargePlan } from '@/lib/dashboard';
 
-export function AutoChargeSection({ plans }: { plans: AutoChargePlan[] }) {
+// feePercent comes from the server — HELCIM_CARD_FEE_PERCENT is not a
+// NEXT_PUBLIC_ var, so reading it here would silently fall back to the default.
+export function AutoChargeSection({ plans, feePercent }: { plans: AutoChargePlan[]; feePercent: number }) {
   const [requested, setRequested] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
 
@@ -20,6 +22,14 @@ export function AutoChargeSection({ plans }: { plans: AutoChargePlan[] }) {
             <li key={p.planId} className="flex items-center justify-between text-sm">
               <span className="text-brand-ink">
                 {p.memberName} — installments are charged automatically on their due date.
+                {' '}
+                {/* A card pays the processing fee here exactly as it does at
+                    checkout. There's no payment modal on an automatic charge
+                    to say so, so it has to be said here. */}
+                <span className="text-brand-ink/60">
+                  A saved card is charged the installment plus the {feePercent}% card
+                  processing fee; a saved bank account has no fee.
+                </span>
               </span>
               {wasRequested ? (
                 <span className="text-brand-ink/50">Cancellation requested — Debbie will follow up.</span>

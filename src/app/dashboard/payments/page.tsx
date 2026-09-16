@@ -7,6 +7,7 @@ import {
 } from '@/lib/dashboard';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { todayIso } from '@/lib/billing/dueDates';
+import { cardFeePercent } from '@/lib/billing/cardFee';
 import { money, formatDateLong, formatTime, formatTimestamp } from '@/lib/format';
 import { PayNowButton } from './PayNowButton';
 import { AutoChargeSection } from './AutoChargeSection';
@@ -99,7 +100,7 @@ export default async function PaymentsPage() {
         </section>
       )}
 
-      <AutoChargeSection plans={autoChargePlans} />
+      <AutoChargeSection plans={autoChargePlans} feePercent={cardFeePercent()} />
 
       {/* Upcoming */}
       <section className="space-y-3">
