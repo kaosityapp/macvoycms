@@ -30,13 +30,38 @@ function apiToken(): string {
   return token;
 }
 
+/**
+ * Helcim requires the idempotency key to be "any unique 25 to 36 character
+ * alphanumeric value that also contains hyphens and underscores"
+ * (devdocs.helcim.com/docs/idempotency). Our references are 13–18 characters,
+ * which Helcim rejects outright with 400 "invalid idempotencyKey" — so every
+ * stored-card charge failed before it reached the card. Padding with a hash of
+ * the reference keeps the reference readable at the front and keeps the key
+ * deterministic, which is the point of the header: a retry of the same charge
+ * presents the same key, and Helcim collapses it instead of charging twice
+ * (keys are retained 5 minutes).
+ */
+function idempotencyKeyFor(reference: string): string {
+  const hash = createHash('sha256').update(reference).digest('hex');
+  return `${reference}-${hash}`.slice(0, 36);
+}
+
 async function helcimFetch(path: string, init: RequestInit & { idempotencyKey?: string } = {}) {
   const headers: Record<string, string> = {
     'api-token': apiToken(),
     'content-type': 'application/json',
     ...(init.headers as Record<string, string> | undefined),
   };
-  if (init.idempotencyKey) headers['idempotency-key'] = init.idempotencyKey;
+  if (init.idempotencyKey) {
+    // Fail loudly here rather than letting Helcim reject the charge with a 400
+    // that reads like a payment problem.
+    if (!/^[A-Za-z0-9_-]{25,36}$/.test(init.idempotencyKey)) {
+      throw new Error(
+        `Invalid Helcim idempotency key (needs 25-36 chars of A-Z a-z 0-9 - _): "${init.idempotencyKey}"`,
+      );
+    }
+    headers['idempotency-key'] = init.idempotencyKey;
+  }
 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
@@ -153,7 +178,7 @@ export interface ChargeResult {
 export async function chargeStoredCard(input: ChargeStoredCardInput): Promise<ChargeResult> {
   const data = await helcimFetch('/payment/purchase', {
     method: 'POST',
-    idempotencyKey: input.reference,
+    idempotencyKey: idempotencyKeyFor(input.reference),
     body: JSON.stringify({
       ipAddress: input.ipAddress ?? '0.0.0.0',
       amount: input.amount,
