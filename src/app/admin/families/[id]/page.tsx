@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments, type PayStatus } from '@/lib/admin/paymentStatus';
-import { findDueInstallment } from '@/lib/billing/autoCharge';
+import { findDueInstallment, allocatePayments } from '@/lib/billing/allocation';
 import { todayIso, toEasternDateIso } from '@/lib/billing/dueDates';
 import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp, formatTimestampShort } from '@/lib/format';
 import { POLICIES } from '@/lib/consents/policies';
@@ -53,7 +53,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
        family:family_accounts(id, parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(id, status, class:classes(id, name, day_of_week, start_time, end_time, is_private, location:locations(name))),
        payment_plans(id, plan_type, total_amount, installment_schedule, status, auto_charge, stored_card_token, stored_bank_customer_id, stored_bank_account_id),
-       payments(id, amount, category, paid_at, method, note),
+       payments(id, amount, category, paid_at, method, note, installment_index),
        consents(type, agreed_at),
        order_items(item_type, amount)`,
     )
@@ -67,10 +67,11 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
   const summary = summarizePayments(activePlan, d.payments ?? [], today, billingActive);
   const activeEnrollments = (d.enrollments ?? []).filter((e: any) => e.status === 'active' && e.class);
   const paidPayments = (d.payments ?? []).filter((p: any) => p.paid_at);
-  const installments: { date: string; amount: number }[] = Array.isArray(activePlan?.installment_schedule)
-    ? activePlan.installment_schedule
-    : [];
-  const dueInstallment = findDueInstallment(installments, summary.paid, today);
+  // Per-installment state (settled / overdue / upcoming), oldest first — a
+  // bare date label read 'overdue' on installments the family had already
+  // paid, and put the retry control on one of them.
+  const installments = allocatePayments(activePlan?.installment_schedule, d.payments ?? [], today);
+  const dueInstallment = findDueInstallment(activePlan?.installment_schedule, d.payments ?? [], today);
   const consentByType = new Map((d.consents ?? []).map((c: any) => [c.type, c.agreed_at]));
 
   const { data: classesData } = await supabase
@@ -139,27 +140,31 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
             <p className="mt-1 text-sm text-brand-ink/60">No active plan.</p>
           ) : (
             <ul className="mt-1 divide-y divide-brand-ink/5 text-sm">
-              {installments.map((i, idx) => {
-                const past = i.date < today;
-                const isDue = billingActive && dueInstallment?.index === idx;
+              {installments.map((i) => {
+                const past = i.isOverdue && !i.settled;
+                const isDue = billingActive && dueInstallment?.index === i.index;
                 return (
-                  <li key={idx} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                  <li key={i.index} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
                     <span className="text-brand-ink">
                       {formatDateShort(i.date)} — {money(i.amount)}
                     </span>
                     <span className="flex items-center gap-3">
                       <span
                         className={`text-xs ${
-                          past ? (billingActive ? 'text-red-600' : 'text-brand-ink/50') : 'text-brand-ink/50'
+                          i.settled
+                            ? 'text-green-700'
+                            : past && billingActive
+                              ? 'text-red-600'
+                              : 'text-brand-ink/50'
                         }`}
                       >
-                        {past ? (billingActive ? 'overdue' : 'due') : 'upcoming'}
+                        {i.settled ? 'paid' : past ? (billingActive ? 'overdue' : 'due') : 'upcoming'}
                       </span>
                       {isDue && activePlan?.id && (
                         <RetryInstallmentControls
                           memberId={d.id}
                           planId={activePlan.id}
-                          installmentIndex={idx}
+                          installmentIndex={i.index}
                           hasPaymentMethod={Boolean(
                             activePlan.stored_card_token ||
                               (activePlan.stored_bank_customer_id && activePlan.stored_bank_account_id),

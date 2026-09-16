@@ -274,22 +274,26 @@ export async function retryInstallmentNow(_prev: ActionState, formData: FormData
   const schedule = Array.isArray(plan.installment_schedule) ? (plan.installment_schedule as any) : [];
   const { data: paidPayments } = await supabase
     .from('payments')
-    .select('amount')
+    .select('amount, paid_at, installment_index')
     .eq('payment_plan_id', plan.id)
     .not('paid_at', 'is', null);
-  const paidTotal = (paidPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
 
-  const due = findDueInstallment(schedule, paidTotal, todayIso());
+  const due = findDueInstallment(schedule, paidPayments ?? [], todayIso());
   if (!due) return { error: 'Nothing is currently due on this plan.' };
 
+  // More than one intent per installment is normal — an abandoned checkout
+  // leaves a 'pending' row behind, and the family can start a second attempt.
+  // maybeSingle() errors on two rows and hands back null, which read as
+  // "nothing in flight" and let a real duplicate charge through, so take the
+  // whole list (same as the nightly cron does).
   const { data: inFlight } = await supabase
     .from('payment_intents')
     .select('id, status')
     .eq('payment_plan_id', plan.id)
     .eq('installment_index', due.index)
-    .in('status', ['pending', 'client_confirmed', 'settling', 'completed'])
-    .maybeSingle();
-  if (inFlight) return { error: `That installment is already ${inFlight.status}.` };
+    .in('status', ['pending', 'client_confirmed', 'settling', 'completed']);
+  const blocking = (inFlight ?? [])[0];
+  if (blocking) return { error: `That installment is already ${blocking.status}.` };
 
   await supabase.from('payment_plans').update({ auto_charge: true }).eq('id', plan.id);
 

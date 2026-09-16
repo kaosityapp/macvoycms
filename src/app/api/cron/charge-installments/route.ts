@@ -88,12 +88,11 @@ export async function GET(request: NextRequest) {
 
     const { data: paidPayments } = await admin
       .from('payments')
-      .select('amount')
+      .select('amount, paid_at, installment_index')
       .eq('payment_plan_id', plan.id)
       .not('paid_at', 'is', null);
-    const paidTotal = (paidPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
 
-    const due = findDueInstallment(schedule, paidTotal, today);
+    const due = findDueInstallment(schedule, paidPayments ?? [], today);
     if (!due) {
       results.push({ planId: plan.id, outcome: 'nothing due' });
       continue;
@@ -341,6 +340,7 @@ async function checkCardReconciliation(admin: AdminClient): Promise<{ id: string
         .insert({
           family_member_id: intent.family_member_id,
           payment_plan_id: intent.payment_plan_id,
+          installment_index: intent.installment_index,
           amount: txn.amount || intent.amount,
           category: intent.category,
           paid_at: new Date().toISOString(),
@@ -383,6 +383,7 @@ async function reconcileAchFallback(
     id: string;
     family_member_id: string;
     payment_plan_id: string | null;
+    installment_index: number | null;
     amount: number;
     category: string;
     reference: string;
@@ -417,6 +418,7 @@ async function reconcileAchFallback(
       .insert({
         family_member_id: intent.family_member_id,
         payment_plan_id: intent.payment_plan_id,
+        installment_index: intent.installment_index,
         amount: achTxn.amount || intent.amount,
         category: intent.category,
         paid_at: new Date().toISOString(),
@@ -507,6 +509,7 @@ async function checkAchSettlements(admin: AdminClient): Promise<{ id: string; ou
         .insert({
           family_member_id: intent.family_member_id,
           payment_plan_id: intent.payment_plan_id,
+          installment_index: intent.installment_index,
           amount: txn.amount || intent.amount,
           category: intent.category,
           paid_at: new Date().toISOString(),

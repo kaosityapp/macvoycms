@@ -28,21 +28,7 @@ export interface RecurringPlan {
   stored_bank_account_id?: string | null;
 }
 
-/** The first due-but-unpaid installment by cumulative amount, or null. */
-export function findDueInstallment(
-  schedule: InstallmentSchedule[],
-  paidTotal: number,
-  today: string,
-): { index: number; amount: number } | null {
-  let cumulative = 0;
-  for (let i = 0; i < schedule.length; i++) {
-    cumulative += Number(schedule[i]?.amount ?? 0);
-    if (schedule[i]?.date <= today && paidTotal < cumulative - 0.005) {
-      return { index: i, amount: Number(schedule[i].amount) };
-    }
-  }
-  return null;
-}
+export { findDueInstallment } from '@/lib/billing/allocation';
 
 export async function dancerNameFor(admin: AdminClient, familyMemberId: string): Promise<string> {
   const { data } = await admin

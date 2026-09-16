@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { getAddon } from '@/lib/constants/addons';
+import { outstandingInstallments } from '@/lib/billing/allocation';
 
 export interface ActiveEnrollment {
   memberId: string;
@@ -142,7 +143,7 @@ export async function getUpcomingInstallments(
   const { data } = await supabase
     .from('family_members')
     .select(
-      'id, first_name, last_name, payment_plans(id, plan_type, status, installment_schedule, payments(amount, paid_at))',
+      'id, first_name, last_name, payment_plans(id, plan_type, status, installment_schedule, payments(amount, paid_at, installment_index))',
     )
     .eq('family_account_id', accountId);
 
@@ -150,31 +151,22 @@ export async function getUpcomingInstallments(
   for (const m of (data ?? []) as any[]) {
     for (const plan of m.payment_plans ?? []) {
       if (plan.status !== 'active') continue;
-      const schedule = Array.isArray(plan.installment_schedule) ? plan.installment_schedule : [];
-      // Net against what's actually been paid (Helcim, ACH, or a manual
-      // entry) — otherwise an installment already covered by a lump-sum or
-      // manual payment still shows a live "Pay Now" button, risking a
-      // duplicate payment.
-      const paidTotal = ((plan.payments ?? []) as any[])
-        .filter((p) => p.paid_at)
-        .reduce((sum, p) => sum + Number(p.amount), 0);
-
-      let cumulative = 0;
-      schedule.forEach((item: any, idx: number) => {
-        cumulative += Number(item?.amount ?? 0);
-        if (!item?.date) return;
-        if (paidTotal >= cumulative - 0.005) return; // already covered
+      // Only what's genuinely still owing — an installment already settled
+      // (by card, bank, or a manual entry) must not keep a live "Pay Now"
+      // button, and one the family skipped must not disappear behind the
+      // others' payments.
+      for (const inst of outstandingInstallments(plan.installment_schedule, plan.payments ?? [], todayIso)) {
         out.push({
           memberId: m.id,
           memberName: `${m.first_name} ${m.last_name}`,
           planId: plan.id,
           planType: plan.plan_type,
-          installmentIndex: idx,
-          date: item.date,
-          amount: Number(item.amount ?? 0),
-          isOverdue: item.date < todayIso,
+          installmentIndex: inst.index,
+          date: inst.date,
+          amount: inst.amount,
+          isOverdue: inst.isOverdue,
         });
-      });
+      }
     }
   }
   out.sort((a, b) => a.date.localeCompare(b.date));

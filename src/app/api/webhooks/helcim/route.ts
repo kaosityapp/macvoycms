@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
   const { data: intent } = await admin
     .from('payment_intents')
-    .select('id, family_member_id, payment_plan_id, category, amount, status, save_card, helcim_transaction_id')
+    .select('id, family_member_id, payment_plan_id, installment_index, category, amount, status, save_card, helcim_transaction_id')
     .eq('reference', txn.invoiceNumber)
     .maybeSingle();
 
@@ -101,6 +101,9 @@ export async function POST(request: NextRequest) {
       .insert({
         family_member_id: intent.family_member_id,
         payment_plan_id: intent.payment_plan_id,
+        // Which installment this settles — without it every surface has to
+        // guess, and guesses wrong for a family who pays out of order.
+        installment_index: intent.installment_index,
         amount: txn.amount || intent.amount,
         category: intent.category,
         paid_at: new Date().toISOString(),

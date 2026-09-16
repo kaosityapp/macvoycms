@@ -28,7 +28,7 @@ export default async function AdminOverviewPage() {
     supabase
       .from('family_members')
       .select(
-        'id, first_name, last_name, payment_plans(total_amount, installment_schedule, status), payments(amount, paid_at)',
+        'id, first_name, last_name, payment_plans(total_amount, installment_schedule, status), payments(amount, paid_at, installment_index)',
       )
       .eq('status', 'active'),
     supabase

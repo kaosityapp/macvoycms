@@ -20,7 +20,7 @@ export default async function AdminPaymentsPage() {
       .select(
         `id, first_name, last_name,
          payment_plans(id, total_amount, installment_schedule, status, stored_card_token, stored_bank_account_id),
-         payments(amount, paid_at)`,
+         payments(amount, paid_at, installment_index)`,
       )
       .eq('status', 'active'),
     supabase

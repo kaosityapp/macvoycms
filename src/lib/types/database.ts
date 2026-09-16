@@ -697,6 +697,7 @@ export type Database = {
           family_member_id: string
           helcim_transaction_id: string | null
           id: string
+          installment_index: number | null
           late_fee_amount: number | null
           late_fee_applied_at: string | null
           method: string
@@ -711,6 +712,7 @@ export type Database = {
           family_member_id: string
           helcim_transaction_id?: string | null
           id?: string
+          installment_index?: number | null
           late_fee_amount?: number | null
           late_fee_applied_at?: string | null
           method?: string
@@ -725,6 +727,7 @@ export type Database = {
           family_member_id?: string
           helcim_transaction_id?: string | null
           id?: string
+          installment_index?: number | null
           late_fee_amount?: number | null
           late_fee_applied_at?: string | null
           method?: string

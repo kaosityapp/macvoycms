@@ -5,6 +5,8 @@
  * installment isn't really late.
  */
 
+import { allocatePayments, type PaymentRecord } from '@/lib/billing/allocation';
+
 export type PayStatus = 'no_plan' | 'paid' | 'overdue' | 'on_track';
 
 export interface Installment {
@@ -27,7 +29,7 @@ export interface DancerPaymentSummary {
 
 export function summarizePayments(
   plan: { total_amount: number; installment_schedule: unknown; status: string } | null,
-  payments: { amount: number; paid_at: string | null }[],
+  payments: PaymentRecord[],
   todayIso: string,
   billingActive: boolean,
 ): DancerPaymentSummary {
@@ -44,19 +46,19 @@ export function summarizePayments(
     };
   }
 
-  const schedule: Installment[] = Array.isArray(plan.installment_schedule)
-    ? (plan.installment_schedule as Installment[])
-    : [];
   const total = Number(plan.total_amount);
   const paid = payments
     .filter((p) => p.paid_at)
     .reduce((sum, p) => sum + Number(p.amount), 0);
 
-  const sortedSchedule = [...schedule].sort((a, b) => a.date.localeCompare(b.date));
-  const upcoming = sortedSchedule.filter((i) => i.date >= todayIso);
-  const next = upcoming[0] ?? null;
+  // Per-installment, so a family who paid out of order is read correctly —
+  // see src/lib/billing/allocation.ts.
+  const installments = allocatePayments(plan.installment_schedule, payments, todayIso);
+  const outstanding = installments.filter((i) => !i.settled);
+  const next = outstanding.find((i) => i.date >= todayIso) ?? null;
+  const pastDue = outstanding.filter((i) => i.date <= todayIso);
 
-  if (plan.status === 'completed' || (total > 0 && paid >= total)) {
+  if (plan.status === 'completed' || (installments.length > 0 && outstanding.length === 0)) {
     return {
       status: 'paid',
       label: 'Paid in full',
@@ -69,30 +71,16 @@ export function summarizePayments(
     };
   }
 
-  const dueSoFar = sortedSchedule
-    .filter((i) => i.date <= todayIso)
-    .reduce((sum, i) => sum + Number(i.amount), 0);
-
-  if (billingActive && paid + 0.001 < dueSoFar) {
-    // The earliest installment that's both past due and not yet covered by
-    // cumulative payments — NOT the next upcoming one (which may be weeks
-    // away and hasn't come due yet).
-    let cumulative = 0;
-    let overdueSinceDate: string | null = null;
-    for (const inst of sortedSchedule) {
-      cumulative += Number(inst.amount);
-      if (inst.date <= todayIso && paid + 0.001 < cumulative) {
-        overdueSinceDate = inst.date;
-        break;
-      }
-    }
+  if (billingActive && pastDue.length > 0) {
     return {
       status: 'overdue',
       label: 'Payment overdue',
       nextPaymentDate: next?.date ?? null,
       nextPaymentAmount: next?.amount ?? null,
-      overdueAmount: dueSoFar - paid,
-      overdueSinceDate,
+      // What's actually unpaid and past due — not the whole remaining balance,
+      // and no longer polluted by card fees inflating the "paid" total.
+      overdueAmount: pastDue.reduce((sum, i) => sum + i.amount, 0),
+      overdueSinceDate: pastDue[0].date,
       total,
       paid,
     };
