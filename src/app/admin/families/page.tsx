@@ -54,8 +54,8 @@ export default async function DancersPage({
       .select(
         `id, first_name, last_name, status,
          family:family_accounts(parent1_email),
-         payment_plans(total_amount, installment_schedule, status),
-         payments(amount, paid_at, installment_index)`,
+         payment_plans(id, total_amount, installment_schedule, status),
+         payments(amount, paid_at, installment_index, payment_plan_id)`,
       )
       .order('last_name', { ascending: true }),
     admin

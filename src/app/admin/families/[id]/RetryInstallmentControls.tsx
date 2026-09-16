@@ -40,12 +40,18 @@ export function RetryInstallmentControls({
 
   return (
     <span className="flex flex-wrap items-center gap-2">
-      {hasPaymentMethod && (
+      {hasPaymentMethod ? (
         <form action={retryAction}>
           <input type="hidden" name="member_id" value={memberId} />
           <input type="hidden" name="plan_id" value={planId} />
           <RetryButton />
         </form>
+      ) : (
+        // Say why there's nothing to click. Silently hiding it read as "the
+        // button disappeared" when a plan change dropped the saved card.
+        <span className="text-xs text-brand-ink/50">
+          No saved card — the family can pay from their own Payments page.
+        </span>
       )}
       <span className="text-xs text-brand-ink/40">give more time:</span>
       {PUSH_OPTIONS.map((opt) => (

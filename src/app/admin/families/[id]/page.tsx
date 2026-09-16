@@ -53,7 +53,7 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
        family:family_accounts(id, parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(id, status, class:classes(id, name, day_of_week, start_time, end_time, is_private, location:locations(name))),
        payment_plans(id, plan_type, total_amount, installment_schedule, status, auto_charge, stored_card_token, stored_bank_customer_id, stored_bank_account_id),
-       payments(id, amount, category, paid_at, method, note, installment_index),
+       payments(id, amount, category, paid_at, method, note, installment_index, payment_plan_id),
        consents(type, agreed_at),
        order_items(item_type, amount)`,
     )
@@ -70,8 +70,8 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
   // Per-installment state (settled / overdue / upcoming), oldest first — a
   // bare date label read 'overdue' on installments the family had already
   // paid, and put the retry control on one of them.
-  const installments = allocatePayments(activePlan?.installment_schedule, d.payments ?? [], today);
-  const dueInstallment = findDueInstallment(activePlan?.installment_schedule, d.payments ?? [], today);
+  const installments = allocatePayments(activePlan?.installment_schedule, d.payments ?? [], today, activePlan?.id);
+  const dueInstallment = findDueInstallment(activePlan?.installment_schedule, d.payments ?? [], today, activePlan?.id);
   const consentByType = new Map((d.consents ?? []).map((c: any) => [c.type, c.agreed_at]));
 
   const { data: classesData } = await supabase

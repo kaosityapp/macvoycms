@@ -30,6 +30,7 @@ export interface PaymentRecord {
   amount: number | string;
   paid_at?: string | null;
   installment_index?: number | null;
+  payment_plan_id?: string | null;
 }
 
 export interface InstallmentState {
@@ -57,6 +58,12 @@ export function allocatePayments(
   rawSchedule: unknown,
   payments: PaymentRecord[],
   todayIso: string,
+  /** The plan being allocated. An index only means anything against the plan
+   *  it was recorded on — a superseded plan's schedule was a different list,
+   *  so its positions don't carry over. Pass this wherever payments from more
+   *  than one plan can reach here (the admin pages pass every payment a dancer
+   *  has ever made). */
+  planId?: string | null,
 ): InstallmentState[] {
   const schedule = toSchedule(rawSchedule);
   const paid = payments.filter((p) => p.paid_at);
@@ -67,7 +74,8 @@ export function allocatePayments(
   for (const p of paid) {
     const amount = Number(p.amount);
     if (!Number.isFinite(amount)) continue;
-    const idx = p.installment_index;
+    const foreignPlan = Boolean(planId && p.payment_plan_id && p.payment_plan_id !== planId);
+    const idx = foreignPlan ? null : p.installment_index;
     if (idx == null || idx < 0 || idx >= schedule.length) floating += amount;
     else applied.set(idx, (applied.get(idx) ?? 0) + amount);
   }
@@ -101,8 +109,9 @@ export function outstandingInstallments(
   rawSchedule: unknown,
   payments: PaymentRecord[],
   todayIso: string,
+  planId?: string | null,
 ): InstallmentState[] {
-  return allocatePayments(rawSchedule, payments, todayIso).filter((i) => !i.settled);
+  return allocatePayments(rawSchedule, payments, todayIso, planId).filter((i) => !i.settled);
 }
 
 /**
@@ -113,8 +122,9 @@ export function findDueInstallment(
   rawSchedule: unknown,
   payments: PaymentRecord[],
   todayIso: string,
+  planId?: string | null,
 ): { index: number; amount: number } | null {
-  const due = allocatePayments(rawSchedule, payments, todayIso).find(
+  const due = allocatePayments(rawSchedule, payments, todayIso, planId).find(
     (i) => !i.settled && i.date <= todayIso,
   );
   return due ? { index: due.index, amount: due.amount } : null;
@@ -125,8 +135,9 @@ export function outstandingTotal(
   rawSchedule: unknown,
   payments: PaymentRecord[],
   todayIso: string,
+  planId?: string | null,
 ): number {
-  return outstandingInstallments(rawSchedule, payments, todayIso).reduce(
+  return outstandingInstallments(rawSchedule, payments, todayIso, planId).reduce(
     (sum, i) => sum + i.amount,
     0,
   );

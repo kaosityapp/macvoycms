@@ -28,7 +28,7 @@ export interface DancerPaymentSummary {
 }
 
 export function summarizePayments(
-  plan: { total_amount: number; installment_schedule: unknown; status: string } | null,
+  plan: { id?: string | null; total_amount: number; installment_schedule: unknown; status: string } | null,
   payments: PaymentRecord[],
   todayIso: string,
   billingActive: boolean,
@@ -53,7 +53,7 @@ export function summarizePayments(
 
   // Per-installment, so a family who paid out of order is read correctly —
   // see src/lib/billing/allocation.ts.
-  const installments = allocatePayments(plan.installment_schedule, payments, todayIso);
+  const installments = allocatePayments(plan.installment_schedule, payments, todayIso, plan.id);
   const outstanding = installments.filter((i) => !i.settled);
   const next = outstanding.find((i) => i.date >= todayIso) ?? null;
   const pastDue = outstanding.filter((i) => i.date <= todayIso);

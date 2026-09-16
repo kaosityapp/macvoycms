@@ -122,7 +122,9 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
 
   const { data: existingPlan } = await supabase
     .from('payment_plans')
-    .select('installment_schedule')
+    .select(
+      'id, installment_schedule, stored_card_token, stored_customer_code, stored_bank_customer_id, stored_bank_account_id, auto_charge',
+    )
     .eq('family_member_id', memberId)
     .eq('status', 'active')
     .maybeSingle();
@@ -145,14 +147,60 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
     .eq('family_member_id', memberId)
     .eq('status', 'active');
 
-  const { error } = await supabase.from('payment_plans').insert({
-    family_member_id: memberId,
-    plan_type: 'custom',
-    total_amount: total,
-    installment_schedule: schedule as unknown as Json,
-    status: 'active',
-  });
-  if (error) return { error: 'Could not create the custom plan.' };
+  const { data: newPlan, error } = await supabase
+    .from('payment_plans')
+    .insert({
+      family_member_id: memberId,
+      plan_type: 'custom',
+      total_amount: total,
+      installment_schedule: schedule as unknown as Json,
+      status: 'active',
+      // The family's saved card and their opt-in belong to the family, not to
+      // a plan row. Leaving them behind silently switched off auto-charge and
+      // took away the admin's own Retry button, with nothing saying why.
+      stored_card_token: existingPlan?.stored_card_token ?? null,
+      stored_customer_code: existingPlan?.stored_customer_code ?? null,
+      stored_bank_customer_id: existingPlan?.stored_bank_customer_id ?? null,
+      stored_bank_account_id: existingPlan?.stored_bank_account_id ?? null,
+      auto_charge: existingPlan?.auto_charge ?? false,
+    })
+    .select('id')
+    .single();
+  if (error || !newPlan) return { error: 'Could not create the custom plan.' };
+
+  // Payments recorded against the old row have to come with it, and their
+  // installment_index has to be remapped: the merged schedule is re-sorted by
+  // date, so position 1 rarely still means the same installment. Left alone,
+  // a payment silently settles whichever installment now sits at its old
+  // index — which is how a dancer's paid installment showed as upcoming while
+  // one she'd never paid showed as settled.
+  if (existingPlan?.id) {
+    const { data: oldPayments } = await supabase
+      .from('payments')
+      .select('id, installment_index')
+      .eq('payment_plan_id', existingPlan.id);
+
+    const claimed = new Set<number>();
+    for (const payment of oldPayments ?? []) {
+      const oldEntry =
+        payment.installment_index != null ? existingSchedule[payment.installment_index] : undefined;
+      // Match on the installment itself, then fall back to unlabelled (the
+      // allocator nets those oldest-first) rather than keeping a stale index.
+      // `claimed` keeps two payments off the same line when a schedule repeats
+      // a date and amount.
+      const newIndex = oldEntry
+        ? schedule.findIndex(
+            (i, idx) =>
+              !claimed.has(idx) && i.date === oldEntry.date && Number(i.amount) === Number(oldEntry.amount),
+          )
+        : -1;
+      if (newIndex >= 0) claimed.add(newIndex);
+      await supabase
+        .from('payments')
+        .update({ payment_plan_id: newPlan.id, installment_index: newIndex >= 0 ? newIndex : null })
+        .eq('id', payment.id);
+    }
+  }
 
   // If this dancer was awaiting pricing (registered directly, not from the
   // spreadsheet), setting their first plan IS the approval — activate them
