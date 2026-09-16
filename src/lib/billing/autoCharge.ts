@@ -64,7 +64,14 @@ export async function attemptInstallmentCharge(
   dueDate: string | undefined,
   attemptNumber: number,
 ): Promise<
-  | { approved: boolean; reference: string; settling?: boolean; declined?: boolean; apiError?: string }
+  | {
+      approved: boolean;
+      reference: string;
+      settling?: boolean;
+      declined?: boolean;
+      declineReason?: string;
+      apiError?: string;
+    }
   | { error: string }
 > {
   const usingCard = Boolean(plan.stored_card_token);
@@ -98,9 +105,13 @@ export async function attemptInstallmentCharge(
         reference,
       });
       if (!charge.approved) {
-        await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, 'Card declined');
+        // The issuer's own words ('SUSPECTED FRAUD', 'INSUFFICIENT FUNDS')
+        // are what tells Debbie whether to re-try or to ring the family.
+        const reason = charge.declineReason ?? 'Card declined';
+        await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, reason);
+        return { approved: false, reference, declined: true, declineReason: reason };
       }
-      return { approved: charge.approved, reference, declined: !charge.approved };
+      return { approved: true, reference };
     } catch (err) {
       // The request never reached the card — a bad request of ours, a
       // misconfigured token, Helcim being down. Reporting that as a decline

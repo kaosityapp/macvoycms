@@ -365,6 +365,12 @@ export async function retryInstallmentNow(_prev: ActionState, formData: FormData
   // Only a real decline is the family's problem. Anything else never reached
   // the card, so say what actually broke instead of sending Debbie off to ask
   // them for a different one.
+  if (outcome.declined) {
+    const reason = outcome.declineReason ?? 'Declined by the card issuer';
+    return {
+      error: `${reason}. Nothing was charged — the card reached their bank and their bank refused it, so a different card, a bank payment, or the family calling their bank is what moves this forward. Debbie has been emailed.`,
+    };
+  }
   return outcome.apiError
     ? { error: `The payment provider rejected the request, so the card was never charged: ${outcome.apiError}` }
     : { error: `Declined. Debbie has been notified — try a different card/account or contact the family.` };

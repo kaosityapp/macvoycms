@@ -19,6 +19,9 @@
 
 import { createHmac, createHash, randomUUID } from 'crypto';
 import { withCardFee, cardFeeOn, cardFeePercent } from '@/lib/billing/cardFee';
+import { HelcimApiError } from '@/lib/integrations/helcimError';
+
+export { HelcimApiError };
 
 const API_BASE = 'https://api.helcim.com/v2';
 
@@ -67,7 +70,7 @@ async function helcimFetch(path: string, init: RequestInit & { idempotencyKey?: 
   const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
-    throw new Error(`Helcim API error ${res.status} on ${path}: ${detail}`);
+    throw new HelcimApiError(`Helcim API error ${res.status} on ${path}: ${detail}`, res.status, detail);
   }
   return res.json();
 }
@@ -176,6 +179,8 @@ export interface ChargeResult {
   transactionId: string;
   status: string;
   approved: boolean;
+  /** The issuer's words when it said no, e.g. "Transaction Declined: SUSPECTED FRAUD". */
+  declineReason?: string;
 }
 
 /**
@@ -188,6 +193,28 @@ export interface ChargeResult {
 export async function chargeStoredCard(input: ChargeStoredCardInput): Promise<ChargeResult> {
   const fee = cardFeeOn(input.amount);
   const total = withCardFee(input.amount);
+  try {
+    return await purchaseStoredCard(input, fee, total);
+  } catch (err) {
+    // A declined card comes back as a non-2xx carrying the transaction, so
+    // unwrap it into a normal decline rather than letting it surface as a
+    // broken request.
+    const declined = err instanceof HelcimApiError ? err.declinedTransaction : null;
+    if (!declined) throw err;
+    return {
+      transactionId: declined.transactionId,
+      status: "DECLINED",
+      approved: false,
+      declineReason: declined.reason,
+    };
+  }
+}
+
+async function purchaseStoredCard(
+  input: ChargeStoredCardInput,
+  fee: number,
+  total: number,
+): Promise<ChargeResult> {
   const data = await helcimFetch('/payment/purchase', {
     method: 'POST',
     idempotencyKey: idempotencyKeyFor(input.reference),
