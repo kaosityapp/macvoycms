@@ -18,6 +18,7 @@
  */
 
 import { createHmac, createHash, randomUUID } from 'crypto';
+import { withCardFee, cardFeeOn, cardFeePercent } from '@/lib/billing/cardFee';
 
 const API_BASE = 'https://api.helcim.com/v2';
 
@@ -161,6 +162,7 @@ export function validateClientHash(data: unknown, hash: string, secretToken: str
 // ---------------------------------------------------------------------------
 
 export interface ChargeStoredCardInput {
+  /** The installment amount. The card fee is added on top, here — see below. */
   amount: number;
   cardToken: string;
   reference: string;
@@ -176,14 +178,22 @@ export interface ChargeResult {
   approved: boolean;
 }
 
-/** Charge a previously-saved card token (used by the recurring-charge cron). */
+/**
+ * Charge a previously-saved card token (recurring cron + the admin's manual
+ * retry). `input.amount` is the installment; the card fee is added here, since
+ * the Payment API has no Fee Saver of its own — and it goes on the invoice as
+ * its own line so the family can see what the extra is, rather than arriving
+ * as one unexplained larger number.
+ */
 export async function chargeStoredCard(input: ChargeStoredCardInput): Promise<ChargeResult> {
+  const fee = cardFeeOn(input.amount);
+  const total = withCardFee(input.amount);
   const data = await helcimFetch('/payment/purchase', {
     method: 'POST',
     idempotencyKey: idempotencyKeyFor(input.reference),
     body: JSON.stringify({
       ipAddress: input.ipAddress ?? '0.0.0.0',
-      amount: input.amount,
+      amount: total,
       currency: input.currency ?? 'CAD',
       // Same trap as the checkout endpoint: a top-level invoiceNumber tries to
       // LINK an invoice that already exists and 400s with "Invalid invoice
@@ -199,6 +209,15 @@ export async function chargeStoredCard(input: ChargeStoredCardInput): Promise<Ch
             quantity: 1,
             price: input.amount,
           },
+          ...(fee > 0
+            ? [
+                {
+                  description: `Card processing fee (${cardFeePercent()}%) — no fee on bank payments`,
+                  quantity: 1,
+                  price: fee,
+                },
+              ]
+            : []),
         ],
       },
       cardData: { cardToken: input.cardToken },
@@ -244,6 +263,9 @@ export function verifyWebhookSignature(rawBody: string, headers: WebhookHeaders)
 export interface CardTransaction {
   transactionId: string;
   status: string;
+  /** 'purchase', 'preauth', 'capture', 'refund', 'reverse' — a void of a
+   *  same-day charge arrives as a reversal, NOT as another purchase. */
+  type: string;
   amount: number;
   invoiceNumber?: string;
   cardToken?: string;
@@ -256,6 +278,7 @@ export async function getCardTransaction(id: string): Promise<CardTransaction> {
   return {
     transactionId: String(data.transactionId ?? id),
     status: String(data.status ?? ''),
+    type: String(data.type ?? 'purchase'),
     amount: Number(data.amount ?? 0),
     invoiceNumber: data.invoiceNumber ? String(data.invoiceNumber) : undefined,
     cardToken: data.cardToken ? String(data.cardToken) : undefined,
@@ -279,6 +302,7 @@ export async function findCardTransactionByInvoice(invoiceNumber: string): Promi
   return {
     transactionId: String(match.transactionId ?? ''),
     status: String(match.status ?? ''),
+    type: String(match.type ?? 'purchase'),
     amount: Number(match.amount ?? 0),
     invoiceNumber: match.invoiceNumber ? String(match.invoiceNumber) : undefined,
     cardToken: match.cardToken ? String(match.cardToken) : undefined,

@@ -81,6 +81,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, note: 'No matching payment_intents row' });
   }
 
+  // A void or refund arrives on this same webhook, as its own transaction
+  // carrying the original's invoiceNumber. Treated as a purchase it would
+  // record a SECOND payment for an installment that just got reversed — and
+  // fire a "possible duplicate charge" alert on the way past.
+  const reversalTypes = ['reverse', 'reversal', 'void', 'refund'];
+  if (reversalTypes.includes(txn.type.toLowerCase())) {
+    const reversed = await reverseRecordedPayment(admin, intent, txn);
+    return NextResponse.json({ ok: true, reversed });
+  }
+
   const approved = txn.status.toUpperCase() === 'APPROVED';
 
   if (approved) {
@@ -162,4 +172,49 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Undo a payment Helcim has reversed (a void of a same-day charge, or a
+ * refund). Clears paid_at rather than deleting the row: every surface already
+ * ignores an unpaid payment, so the installment reopens and can be charged
+ * again, while the transaction id and amount stay on file as history.
+ *
+ * The intent goes to 'voided' too — leaving it 'completed' would make the
+ * duplicate-charge guard refuse the re-charge.
+ */
+async function reverseRecordedPayment(
+  admin: ReturnType<typeof createAdminClient>,
+  intent: { id: string; family_member_id: string; helcim_transaction_id: string | null },
+  txn: { transactionId: string; type: string; amount: number },
+): Promise<string> {
+  const originalTxnId = intent.helcim_transaction_id;
+  if (!originalTxnId) return 'no original transaction recorded — nothing to reverse';
+
+  const { data: payment } = await admin
+    .from('payments')
+    .select('id, paid_at, note')
+    .eq('helcim_transaction_id', originalTxnId)
+    .maybeSingle();
+
+  if (!payment || !payment.paid_at) return 'payment already reversed or never recorded';
+
+  const noteSuffix = `${txn.type} ${txn.transactionId} on ${new Date().toISOString().slice(0, 10)}`;
+  await admin
+    .from('payments')
+    .update({
+      paid_at: null,
+      note: payment.note ? `${payment.note} — reversed: ${noteSuffix}` : `Reversed: ${noteSuffix}`,
+    })
+    .eq('id', payment.id);
+
+  await admin.from('payment_intents').update({ status: 'voided' }).eq('id', intent.id);
+
+  const dancerName = await dancerNameFor(admin, intent.family_member_id);
+  await sendAdminAlert(`Payment reversed — ${dancerName}`, [
+    `Helcim reported a ${txn.type} of $${Number(txn.amount).toFixed(2)} (transaction ${txn.transactionId}) against ${dancerName}'s payment ${originalTxnId}.`,
+    `That installment is now showing as unpaid again and can be charged from the dancer's admin page.`,
+  ]);
+
+  return `reversed payment ${payment.id}`;
 }

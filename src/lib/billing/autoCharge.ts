@@ -2,7 +2,6 @@ import { randomBytes } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/types/database';
 import { chargeStoredCard, chargeStoredBankAccount } from '@/lib/integrations/helcim';
-import { withCardFee } from '@/lib/billing/cardFee';
 import { sendAdminAlert } from '@/lib/integrations/adminAlert';
 import { money, formatDateShort } from '@/lib/format';
 
@@ -90,11 +89,11 @@ export async function attemptInstallmentCharge(
 
   if (usingCard) {
     try {
-      // Card pays the processing fee, same as it would at the checkout the
-      // family uses — the Payment API won't add it for us. Bank withdrawals
-      // below stay fee-free.
+      // chargeStoredCard adds the card fee on top (the Payment API has no
+      // Fee Saver of its own) and itemises it on the invoice. Bank
+      // withdrawals below stay fee-free.
       const charge = await chargeStoredCard({
-        amount: withCardFee(targetAmount),
+        amount: targetAmount,
         cardToken: plan.stored_card_token!,
         reference,
       });
