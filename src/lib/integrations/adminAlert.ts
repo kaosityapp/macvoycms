@@ -43,7 +43,7 @@ export async function sendPlainEmail(
   // set a reply-to (e.g. the contact form, where replying is the whole point).
   const footer = opts?.replyTo
     ? ''
-    : `\n<p style="margin-top:24px;font-size:12px;color:#6b7280">This is an automated email &mdash; please do not reply. To reach the school, email <a href="mailto:${SCHOOL_CONTACT_EMAIL}">${SCHOOL_CONTACT_EMAIL}</a>.</p>`;
+    : `\n<p style="margin-top:24px;font-size:12px;color:#6b7280"><strong>THIS IS AN AUTOMATED MESSAGE</strong> &mdash; please do not reply. To reach the school, email <a href="mailto:${SCHOOL_CONTACT_EMAIL}">${SCHOOL_CONTACT_EMAIL}</a>.</p>`;
   const html = bodyLines.map((line) => `<p>${line}</p>`).join('\n') + footer;
 
   try {

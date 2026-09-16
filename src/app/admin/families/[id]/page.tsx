@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments, type PayStatus } from '@/lib/admin/paymentStatus';
 import { findDueInstallment, allocatePayments } from '@/lib/billing/allocation';
+import { withCardFee, cardFeeOn } from '@/lib/billing/cardFee';
 import { todayIso, toEasternDateIso } from '@/lib/billing/dueDates';
 import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp, formatTimestampShort } from '@/lib/format';
 import { POLICIES } from '@/lib/consents/policies';
@@ -165,6 +166,8 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
                           memberId={d.id}
                           planId={activePlan.id}
                           installmentIndex={i.index}
+                          chargeAmount={money(withCardFee(i.amount))}
+                          feeAmount={money(cardFeeOn(i.amount))}
                           hasPaymentMethod={Boolean(
                             activePlan.stored_card_token ||
                               (activePlan.stored_bank_customer_id && activePlan.stored_bank_account_id),

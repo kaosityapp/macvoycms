@@ -5,7 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { retryInstallmentNow, pushInstallmentDueDate, type ActionState } from '../actions';
 import { FormError, FormSuccess } from '@/components/ui';
 
-function RetryButton() {
+function RetryButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -13,7 +13,7 @@ function RetryButton() {
       disabled={pending}
       className="rounded border border-brand-pink px-2 py-0.5 text-xs font-semibold text-brand-pink hover:bg-brand-pink/5 disabled:opacity-50"
     >
-      {pending ? 'Retrying…' : 'Retry now'}
+      {pending ? 'Charging…' : label}
     </button>
   );
 }
@@ -29,11 +29,16 @@ export function RetryInstallmentControls({
   planId,
   installmentIndex,
   hasPaymentMethod,
+  chargeAmount,
+  feeAmount,
 }: {
   memberId: string;
   planId: string;
   installmentIndex: number;
   hasPaymentMethod: boolean;
+  /** What actually reaches the card: the installment plus the card fee. */
+  chargeAmount: string;
+  feeAmount: string;
 }) {
   const [retryState, retryAction] = useActionState<ActionState, FormData>(retryInstallmentNow, {});
   const [pushState, pushAction] = useActionState<ActionState, FormData>(pushInstallmentDueDate, {});
@@ -44,7 +49,11 @@ export function RetryInstallmentControls({
         <form action={retryAction}>
           <input type="hidden" name="member_id" value={memberId} />
           <input type="hidden" name="plan_id" value={planId} />
-          <RetryButton />
+          {/* The schedule line shows the installment; the card is charged the
+              fee on top, so the button says the number that will actually be
+              taken rather than leaving it to be remembered. */}
+          <RetryButton label={`Charge ${chargeAmount}`} />
+          <span className="ml-2 text-xs text-brand-ink/50">incl. {feeAmount} card fee</span>
         </form>
       ) : (
         // Say why there's nothing to click. Silently hiding it read as "the

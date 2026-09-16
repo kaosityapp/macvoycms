@@ -47,8 +47,15 @@ const lines = [
   `<strong>Why:</strong> our system missed the card processing fee on that payment, so it charged the wrong amount. Rather than leave it wrong or bill you for the difference separately, we refunded the whole payment so it can be taken once, correctly.`,
   `<strong>When you'll see it:</strong> refunds usually appear within 7&ndash;10 business days, depending on your bank. It may take a statement cycle to show up, and there is nothing you need to do in the meantime.`,
   `<strong>What happens next:</strong> the installment will be charged again at ${NEW_TOTAL} &mdash; ${INSTALLMENT} tuition plus the ${CARD_FEE} card processing fee, shown as its own line on your receipt. That is the same fee every card payment carries; paying from a bank account instead has no fee.`,
-  `Sorry for the confusion, and thank you for your patience. If anything looks wrong on your statement, or you would rather sort this out a different way, just reply to this note or email <a href="mailto:${SCHOOL_CONTACT_EMAIL}">${SCHOOL_CONTACT_EMAIL}</a> and we will take care of it.`,
+  `Sorry for the confusion, and thank you for your patience. If anything looks wrong on your statement, or you would rather sort this out a different way, email <a href="mailto:${SCHOOL_CONTACT_EMAIL}">${SCHOOL_CONTACT_EMAIL}</a> and we will take care of it.`,
 ];
+
+// Same sender and automated footer as every other family email — see
+// sendPlainEmail in src/lib/integrations/adminAlert.ts.
+const footer =
+  `\n<p style="margin-top:24px;font-size:12px;color:#6b7280"><strong>THIS IS AN AUTOMATED MESSAGE</strong> ` +
+  `&mdash; please do not reply. To reach the school, email ` +
+  `<a href="mailto:${SCHOOL_CONTACT_EMAIL}">${SCHOOL_CONTACT_EMAIL}</a>.</p>`;
 
 if (!SEND) {
   console.log(`--- would send to ${TO} ---`);
@@ -57,17 +64,14 @@ if (!SEND) {
   process.exit(0);
 }
 
-// Replies should reach the school here — this is not an automated notice a
-// family should be told not to answer.
 const res = await fetch('https://api.resend.com/emails', {
   method: 'POST',
   headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
   body: JSON.stringify({
     from: FROM,
     to: [TO],
-    reply_to: SCHOOL_CONTACT_EMAIL,
     subject,
-    html: lines.map((l) => `<p>${l}</p>`).join('\n'),
+    html: lines.map((l) => `<p>${l}</p>`).join('\n') + footer,
   }),
 });
 if (!res.ok) {
