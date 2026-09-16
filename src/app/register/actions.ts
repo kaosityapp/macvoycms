@@ -12,6 +12,7 @@ import type { ReferralSource } from '@/lib/types/database';
 import { sendMagicLink } from '@/lib/authLinks';
 import { verifyRegistrationForm, checkParentNames } from '@/lib/formGuard';
 import { findMatchingAddress } from '@/lib/emailIdentity';
+import { getPendingRegistration } from '@/lib/pendingRegistration';
 
 export interface RegistrationState {
   error?: string;
@@ -63,12 +64,7 @@ export async function checkRegistrationEmail(
   const email = parsed.data;
 
   const admin = createAdminClient();
-  const { data: pending } = await admin
-    .from('pending_registrations')
-    .select('id')
-    .or(`email.ilike.${email},parent2_email.ilike.${email}`)
-    .eq('status', 'pending')
-    .maybeSingle();
+  const pending = await getPendingRegistration(email);
 
   const origin = (await headers()).get('origin') ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
 

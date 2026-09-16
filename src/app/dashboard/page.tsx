@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { getFamilyAccount, isAdmin } from '@/lib/auth';
+import { getFamilyAccount, getSessionUser, isAdmin } from '@/lib/auth';
+import { getPendingRegistration } from '@/lib/pendingRegistration';
 import { createClient } from '@/lib/supabase/server';
 import {
   getActiveEnrollments,
@@ -24,13 +25,21 @@ export default async function OverviewPage({
   const admin = await isAdmin();
 
   if (!account) {
+    // Signed in, no family account — but Debbie may already have this family
+    // on the import, in which case they're one form away from being set up.
+    // Sending them to the blank form instead would duplicate a dancer she has
+    // already priced, so point at their own pre-filled registration.
+    const pending = admin ? null : await getPendingRegistration((await getSessionUser())?.email);
+
     return (
       <div>
         <h1 className="text-2xl font-bold text-brand-pink">Welcome</h1>
         <p className="mt-4 text-brand-ink/70">
           {admin
             ? 'You are signed in as an administrator.'
-            : "Your login isn't linked to a family account yet."}
+            : pending
+              ? "You're almost registered — we just need you to confirm your details and set a password."
+              : "Your login isn't linked to a family account yet."}
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-4">
           {admin && (
@@ -41,9 +50,18 @@ export default async function OverviewPage({
               Go to Admin
             </Link>
           )}
-          <Link href="/register" className="text-brand-pink hover:underline">
-            Register a dancer →
-          </Link>
+          {pending ? (
+            <Link
+              href="/register/continue"
+              className="rounded-md bg-brand-pink px-4 py-2 font-semibold text-white hover:bg-brand-pinkdark"
+            >
+              Finish my registration →
+            </Link>
+          ) : (
+            <Link href="/register" className="text-brand-pink hover:underline">
+              Register a dancer →
+            </Link>
+          )}
         </div>
       </div>
     );

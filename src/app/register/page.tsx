@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getCurrentSeason, getSeasonClassesGrouped, excludeFromOpenRegistration } from '@/lib/season';
 import { getFamilyAccount, getSessionUser } from '@/lib/auth';
+import { getPendingRegistration } from '@/lib/pendingRegistration';
 import { issueFormToken } from '@/lib/formGuard';
 import { RegistrationFlow } from './RegistrationFlow';
 
@@ -35,6 +37,14 @@ export default async function RegisterPage() {
   // proved they own the address, so skip the email gate and show the form
   // with that address locked in.
   const verifiedEmail = user && !account ? (user.email ?? null) : null;
+
+  // Unless Debbie already has them on the import — then the blank form would
+  // create a second, unpriced copy of a dancer she has already set up. Their
+  // pre-filled registration is the one place they should land.
+  if (verifiedEmail && (await getPendingRegistration(verifiedEmail))) {
+    redirect('/register/continue');
+  }
+
   const groups = excludeFromOpenRegistration(allGroups);
 
   return (

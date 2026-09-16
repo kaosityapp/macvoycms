@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { SubmitButton } from '@/components/ui';
 import { confirmEmailLink } from './actions';
 
 export const metadata: Metadata = {
@@ -55,12 +56,9 @@ export default async function ConfirmPage({
         <input type="hidden" name="token_hash" value={tokenHash} />
         <input type="hidden" name="type" value={type} />
         <input type="hidden" name="next" value={next} />
-        <button
-          type="submit"
-          className="rounded-md bg-brand-pink px-5 py-2.5 font-semibold text-white hover:bg-brand-pinkdark"
-        >
-          {copy.cta}
-        </button>
+        {/* Disabled while it works — a second tap spends a token that's
+            already gone, and phone users tap again when nothing happens. */}
+        <SubmitButton pendingText="Signing you in…">{copy.cta}</SubmitButton>
       </form>
       <p className="text-xs text-brand-ink/50">
         This link works once and expires about an hour after it was sent.

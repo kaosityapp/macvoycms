@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getPendingRegistration } from '@/lib/pendingRegistration';
 import { POLICIES } from '@/lib/consents/policies';
 import { getAddon } from '@/lib/constants/addons';
 import { sendPlainEmail } from '@/lib/integrations/adminAlert';
@@ -57,12 +58,7 @@ export async function completePendingRegistration(
 
   // Re-fetch server-side — dancer COUNT, classes, and payment plan all come
   // from here, never the client; only personal/contact details are editable.
-  const { data: pending } = await admin
-    .from('pending_registrations')
-    .select('*')
-    .or(`email.ilike.${user.email ?? ''},parent2_email.ilike.${user.email ?? ''}`)
-    .eq('status', 'pending')
-    .maybeSingle();
+  const pending = await getPendingRegistration(user.email);
   if (!pending) {
     return { error: 'This pre-filled registration is no longer available. Please contact us.' };
   }

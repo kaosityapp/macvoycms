@@ -25,6 +25,17 @@ export async function confirmEmailLink(formData: FormData): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
   if (error) {
+    // A one-time token is spent by the first POST, so a second one — a double
+    // tap on a phone, a refresh, a back-then-submit — always fails. If that
+    // first press did sign them in, honour it: bouncing them to "your link
+    // expired" threw away a working session and stranded them a step short of
+    // finishing. (Seen live: a parent reached /register/continue, then her own
+    // second tap replaced it with the login page two seconds later.)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) redirect(next);
+
     console.warn('confirmEmailLink verifyOtp failed:', error.message);
     redirect(failurePath(rawType));
   }

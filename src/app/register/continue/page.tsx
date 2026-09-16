@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireUser } from '@/lib/auth';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getPendingRegistration } from '@/lib/pendingRegistration';
 import { getCurrentSeason, getSeasonClassesGrouped } from '@/lib/season';
 import { ContinuePrefilledForm } from './ContinuePrefilledForm';
 
@@ -32,14 +32,7 @@ interface DancerPrefill {
 
 export default async function ContinueRegistrationPage() {
   const user = await requireUser();
-  const admin = createAdminClient();
-
-  const { data: pending } = await admin
-    .from('pending_registrations')
-    .select('*')
-    .or(`email.ilike.${user.email ?? ''},parent2_email.ilike.${user.email ?? ''}`)
-    .eq('status', 'pending')
-    .maybeSingle();
+  const pending = await getPendingRegistration(user.email);
 
   if (!pending) {
     return (
