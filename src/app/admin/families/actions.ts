@@ -304,8 +304,14 @@ export async function retryInstallmentNow(_prev: ActionState, formData: FormData
   if (outcome.settling) {
     return { success: `Bank withdrawal of ${money(due.amount)} started — settlement can take a few days; we'll email a receipt once confirmed.` };
   }
-  return outcome.approved
-    ? { success: `Charged ${money(due.amount)} — the receipt will appear once Helcim confirms it.` }
+  if (outcome.approved) {
+    return { success: `Charged ${money(due.amount)} — the receipt will appear once Helcim confirms it.` };
+  }
+  // Only a real decline is the family's problem. Anything else never reached
+  // the card, so say what actually broke instead of sending Debbie off to ask
+  // them for a different one.
+  return outcome.apiError
+    ? { error: `The payment provider rejected the request, so the card was never charged: ${outcome.apiError}` }
     : { error: `Declined. Debbie has been notified — try a different card/account or contact the family.` };
 }
 

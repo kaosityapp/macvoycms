@@ -10,6 +10,7 @@ import {
 import {
   findDueInstallment,
   attemptInstallmentCharge,
+  isCardFailure,
   dancerNameFor,
   handleFailedCharge,
   type InstallmentSchedule,
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
     // Skip if a charge for this installment is already in flight/settling/completed.
     const { data: sameInstallmentIntents } = await admin
       .from('payment_intents')
-      .select('id, status')
+      .select('id, status, failure_reason')
       .eq('payment_plan_id', plan.id)
       .eq('installment_index', due.index);
     const intents = sameInstallmentIntents ?? [];
@@ -110,7 +111,11 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
-    const priorFailures = intents.filter((i) => i.status === 'failed').length;
+    // Only failures the card itself caused count — a rejected request of
+    // ours never reached it, and shouldn't spend the family's two attempts.
+    const priorFailures = intents.filter(
+      (i) => i.status === 'failed' && isCardFailure(i.failure_reason),
+    ).length;
     const attemptNumber = priorFailures + 1;
 
     // One retry only (the next day this cron runs). After a 2nd failure,

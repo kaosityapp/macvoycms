@@ -63,7 +63,10 @@ export async function attemptInstallmentCharge(
   targetAmount: number,
   dueDate: string | undefined,
   attemptNumber: number,
-): Promise<{ approved: boolean; reference: string; settling?: boolean } | { error: string }> {
+): Promise<
+  | { approved: boolean; reference: string; settling?: boolean; declined?: boolean; apiError?: string }
+  | { error: string }
+> {
   const usingCard = Boolean(plan.stored_card_token);
   const usingBank = !usingCard && Boolean(plan.stored_bank_customer_id && plan.stored_bank_account_id);
   if (!usingCard && !usingBank) return { error: 'No card or bank account on file for this plan.' };
@@ -94,10 +97,14 @@ export async function attemptInstallmentCharge(
       if (!charge.approved) {
         await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, 'Card declined');
       }
-      return { approved: charge.approved, reference };
+      return { approved: charge.approved, reference, declined: !charge.approved };
     } catch (err) {
-      await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, (err as Error).message);
-      return { approved: false, reference };
+      // The request never reached the card — a bad request of ours, a
+      // misconfigured token, Helcim being down. Reporting that as a decline
+      // sends everyone hunting for a problem with the family's card.
+      const message = (err as Error).message;
+      await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, message);
+      return { approved: false, reference, apiError: message };
     }
   }
 
@@ -122,6 +129,16 @@ export async function attemptInstallmentCharge(
     await handleFailedCharge(admin, intent?.id, plan.id, dancerName, targetAmount, dueDate, attemptNumber, (err as Error).message);
     return { approved: false, reference };
   }
+}
+
+/**
+ * Did this failure come from the card itself, or from the request never
+ * getting there? Only the former is the family's problem, so only the former
+ * should count against their two attempts — otherwise a bug of ours burns a
+ * family's retries and switches their auto-charge off for good.
+ */
+export function isCardFailure(failureReason: string | null | undefined): boolean {
+  return !(failureReason ?? '').startsWith('Helcim API error');
 }
 
 export async function handleFailedCharge(

@@ -164,6 +164,8 @@ export interface ChargeStoredCardInput {
   amount: number;
   cardToken: string;
   reference: string;
+  /** Line-item description on the invoice this charge creates. */
+  description?: string;
   ipAddress?: string;
   currency?: 'CAD' | 'USD';
 }
@@ -183,7 +185,22 @@ export async function chargeStoredCard(input: ChargeStoredCardInput): Promise<Ch
       ipAddress: input.ipAddress ?? '0.0.0.0',
       amount: input.amount,
       currency: input.currency ?? 'CAD',
-      invoiceNumber: input.reference,
+      // Same trap as the checkout endpoint: a top-level invoiceNumber tries to
+      // LINK an invoice that already exists and 400s with "Invalid invoice
+      // number" when it doesn't. The nested `invoice` object CREATES one under
+      // our reference instead — and we need the reference on the transaction,
+      // because that's what the webhook traces back to a payment_intents row.
+      // (The checkout endpoint calls the same thing `invoiceRequest`.)
+      invoice: {
+        invoiceNumber: input.reference,
+        lineItems: [
+          {
+            description: input.description ?? 'MacVoy Tuition Payment',
+            quantity: 1,
+            price: input.amount,
+          },
+        ],
+      },
       cardData: { cardToken: input.cardToken },
     }),
   });
