@@ -208,13 +208,29 @@ async function reverseRecordedPayment(
     })
     .eq('id', payment.id);
 
-  await admin.from('payment_intents').update({ status: 'voided' }).eq('id', intent.id);
+  // Not optional bookkeeping: while this intent still reads 'completed', the
+  // duplicate-charge guard refuses to re-charge the installment. The first
+  // real reversal hit a status CHECK that didn't allow 'voided' and failed
+  // silently here, so the error is surfaced rather than swallowed.
+  const { error: intentError } = await admin
+    .from('payment_intents')
+    .update({ status: 'voided' })
+    .eq('id', intent.id);
 
   const dancerName = await dancerNameFor(admin, intent.family_member_id);
   await sendAdminAlert(`Payment reversed — ${dancerName}`, [
     `Helcim reported a ${txn.type} of $${Number(txn.amount).toFixed(2)} (transaction ${txn.transactionId}) against ${dancerName}'s payment ${originalTxnId}.`,
     `That installment is now showing as unpaid again and can be charged from the dancer's admin page.`,
+    ...(intentError
+      ? [
+          `NOTE: the payment attempt could not be marked voided (${intentError.message}), so re-charging that installment will be refused until it is. Please send this to Nick.`,
+        ]
+      : []),
   ]);
 
+  if (intentError) {
+    console.error('reverseRecordedPayment: could not void intent:', intentError.message);
+    return `reversed payment ${payment.id}, but intent not voided: ${intentError.message}`;
+  }
   return `reversed payment ${payment.id}`;
 }
