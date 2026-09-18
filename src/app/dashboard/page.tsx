@@ -11,7 +11,14 @@ import {
   getUrgentPaymentReminders,
 } from '@/lib/dashboard';
 import { todayIso, addDays, toEasternDateIso } from '@/lib/billing/dueDates';
-import { money, formatDateLong, formatTime, formatDateShort, formatTimestamp } from '@/lib/format';
+import {
+  money,
+  formatDateLong,
+  formatTime,
+  formatDateShort,
+  formatChargeWindowShort,
+  formatTimestamp,
+} from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -226,7 +233,9 @@ export default async function OverviewPage({
                 {p.isOverdue ? (
                   <span className="font-semibold text-red-600">Overdue since {formatDateShort(p.date)}</span>
                 ) : (
-                  <span className="text-brand-ink/60">{formatDateShort(p.date)}</span>
+                  <span className="text-brand-ink/60">
+                    {p.autoCharged ? formatChargeWindowShort(p.date) : formatDateShort(p.date)}
+                  </span>
                 )}
               </Link>
             ))

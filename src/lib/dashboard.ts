@@ -34,6 +34,10 @@ export interface Installment {
   date: string;
   amount: number;
   isOverdue: boolean;
+  /** True when the nightly cron will charge this one itself — auto-charge is
+   *  on and a card or bank account is on file. Those show a two-day window
+   *  instead of a single date; see formatChargeWindowLong in lib/format.ts. */
+  autoCharged: boolean;
 }
 
 export interface Receipt {
@@ -143,7 +147,7 @@ export async function getUpcomingInstallments(
   const { data } = await supabase
     .from('family_members')
     .select(
-      'id, first_name, last_name, payment_plans(id, plan_type, status, installment_schedule, payments(amount, paid_at, installment_index))',
+      'id, first_name, last_name, payment_plans(id, plan_type, status, installment_schedule, auto_charge, stored_card_token, stored_bank_account_id, payments(amount, paid_at, installment_index))',
     )
     .eq('family_account_id', accountId);
 
@@ -155,6 +159,9 @@ export async function getUpcomingInstallments(
       // (by card, bank, or a manual entry) must not keep a live "Pay Now"
       // button, and one the family skipped must not disappear behind the
       // others' payments.
+      const autoCharged = Boolean(
+        plan.auto_charge && (plan.stored_card_token || plan.stored_bank_account_id),
+      );
       for (const inst of outstandingInstallments(plan.installment_schedule, plan.payments ?? [], todayIso)) {
         out.push({
           memberId: m.id,
@@ -165,6 +172,7 @@ export async function getUpcomingInstallments(
           date: inst.date,
           amount: inst.amount,
           isOverdue: inst.isOverdue,
+          autoCharged,
         });
       }
     }

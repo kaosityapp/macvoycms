@@ -33,6 +33,45 @@ export function formatDateShort(iso: string): string {
   });
 }
 
+/**
+ * The window an automatic charge actually lands in, e.g. '2026-09-17' →
+ * 'September 17–18, 2026'.
+ *
+ * The recurring cron runs once a day, so an installment isn't charged the
+ * moment it falls due — it's charged on the next run, which is the same day
+ * for anything already due by then and the following morning otherwise. A
+ * single due date made that look late: a family saw "Due September 17" and
+ * a receipt dated the 18th. Only plans the cron will actually charge (card
+ * or bank on file, auto-charge on) get the window — someone paying by hand
+ * owes it on the date itself.
+ */
+export function formatChargeWindowLong(iso: string): string {
+  const { start, finish, sameMonth, sameYear } = chargeWindow(iso);
+  const month = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+  if (!sameYear) {
+    return `${month(start)} ${start.getUTCDate()}, ${start.getUTCFullYear()} – ${month(finish)} ${finish.getUTCDate()}, ${finish.getUTCFullYear()}`;
+  }
+  return sameMonth
+    ? `${month(start)} ${start.getUTCDate()}–${finish.getUTCDate()}, ${finish.getUTCFullYear()}`
+    : `${month(start)} ${start.getUTCDate()} – ${month(finish)} ${finish.getUTCDate()}, ${finish.getUTCFullYear()}`;
+}
+
+/** Same window, compact: '2026-09-17' → 'Sep 17–18' (or 'Sep 30 – Oct 1'). */
+export function formatChargeWindowShort(iso: string): string {
+  const { start, finish, sameMonth } = chargeWindow(iso);
+  const month = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+  return sameMonth
+    ? `${month(start)} ${start.getUTCDate()}–${finish.getUTCDate()}`
+    : `${month(start)} ${start.getUTCDate()} – ${month(finish)} ${finish.getUTCDate()}`;
+}
+
+function chargeWindow(iso: string) {
+  const start = new Date(`${iso}T00:00:00Z`);
+  const finish = new Date(start.getTime() + 86_400_000);
+  const sameYear = start.getUTCFullYear() === finish.getUTCFullYear();
+  return { start, finish, sameYear, sameMonth: sameYear && start.getUTCMonth() === finish.getUTCMonth() };
+}
+
 /** ISO timestamp → 'Sep 10, 2026' (Eastern time — see todayIso in dueDates.ts for why). */
 export function formatTimestamp(ts: string): string {
   return new Date(ts).toLocaleDateString('en-US', {

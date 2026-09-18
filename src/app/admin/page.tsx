@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { summarizePayments } from '@/lib/admin/paymentStatus';
 import { todayIso, addDays, toEasternDateIso } from '@/lib/billing/dueDates';
-import { money, formatDateShort, formatDateLong, formatTime } from '@/lib/format';
+import { money, formatDateShort, formatChargeWindowShort, formatDateLong, formatTime } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +28,7 @@ export default async function AdminOverviewPage() {
     supabase
       .from('family_members')
       .select(
-        'id, first_name, last_name, payment_plans(id, total_amount, installment_schedule, status), payments(amount, paid_at, installment_index, payment_plan_id)',
+        'id, first_name, last_name, payment_plans(id, total_amount, installment_schedule, status, auto_charge, stored_card_token, stored_bank_account_id), payments(amount, paid_at, installment_index, payment_plan_id)',
       )
       .eq('status', 'active'),
     supabase
@@ -75,14 +75,23 @@ export default async function AdminOverviewPage() {
   }));
 
   // Payments: due + late from each active dancer's plan.
-  const due: { name: string; date: string; amount: number }[] = [];
+  const due: { name: string; date: string; amount: number; autoCharged: boolean }[] = [];
   const late: { name: string; total: number; date: string }[] = [];
   for (const m of (payRes.data ?? []) as any[]) {
     const plan = (m.payment_plans ?? []).find((p: any) => p.status === 'active') ?? null;
     const s = summarizePayments(plan, m.payments ?? [], today, billingActive);
     const name = `${m.first_name} ${m.last_name}`;
     if (s.status === 'overdue') late.push({ name, total: s.overdueAmount ?? 0, date: s.overdueSinceDate ?? today });
-    if (s.nextPaymentDate) due.push({ name, date: s.nextPaymentDate, amount: s.nextPaymentAmount ?? 0 });
+    if (s.nextPaymentDate) {
+      due.push({
+        name,
+        date: s.nextPaymentDate,
+        amount: s.nextPaymentAmount ?? 0,
+        // Charged by the cron on the due date or the next morning — shown as
+        // that window rather than a single day.
+        autoCharged: Boolean(plan?.auto_charge && (plan.stored_card_token || plan.stored_bank_account_id)),
+      });
+    }
   }
   due.sort((a, b) => a.date.localeCompare(b.date));
   const dueTotal = due.reduce((sum, d) => sum + d.amount, 0);
@@ -193,7 +202,7 @@ export default async function AdminOverviewPage() {
               <div key={i} className="flex items-center justify-between px-5 py-3 text-sm">
                 <span className="text-brand-ink">{p.name}</span>
                 <span className="text-brand-ink/70">
-                  {money(p.amount)} · {formatDateShort(p.date)}
+                  {money(p.amount)} · {p.autoCharged ? formatChargeWindowShort(p.date) : formatDateShort(p.date)}
                 </span>
               </div>
             ))}

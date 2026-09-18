@@ -8,7 +8,7 @@ import {
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { todayIso } from '@/lib/billing/dueDates';
 import { cardFeePercent } from '@/lib/billing/cardFee';
-import { money, formatDateLong, formatTime, formatTimestamp } from '@/lib/format';
+import { money, formatDateLong, formatChargeWindowLong, formatTime, formatTimestamp } from '@/lib/format';
 import { PayNowButton } from './PayNowButton';
 import { AutoChargeSection } from './AutoChargeSection';
 
@@ -133,6 +133,8 @@ export default async function PaymentsPage() {
                   <div className="text-sm text-brand-ink/60">
                     {item.isOverdue ? (
                       <span className="font-semibold text-red-600">Overdue since {formatDateLong(item.date)}</span>
+                    ) : item.autoCharged ? (
+                      <>Charged {formatChargeWindowLong(item.date)}</>
                     ) : (
                       <>Due {formatDateLong(item.date)}</>
                     )}{' '}

@@ -2,7 +2,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { todayIso, toEasternDateIso } from '@/lib/billing/dueDates';
-import { money, formatDateLong, formatDateShort, formatTime, formatTimestampShort } from '@/lib/format';
+import {
+  money,
+  formatDateLong,
+  formatDateShort,
+  formatChargeWindowShort,
+  formatTime,
+  formatTimestampShort,
+} from '@/lib/format';
 import { POLICIES } from '@/lib/consents/policies';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +34,7 @@ export default async function DancerApplicationPage({
        emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, created_at,
        family:family_accounts(parent1_name, parent1_phone, parent1_email, parent2_name, parent2_phone, parent2_email, referral_source),
        enrollments(status, class:classes(id, name, day_of_week, start_time, end_time, location:locations(name))),
-       payment_plans(plan_type, total_amount, installment_schedule, status),
+       payment_plans(plan_type, total_amount, installment_schedule, status, auto_charge, stored_card_token, stored_bank_account_id),
        consents(type, agreed_at),
        order_items(item_type, amount)`,
     )
@@ -61,6 +68,11 @@ export default async function DancerApplicationPage({
     ? activePlan.installment_schedule
     : [];
   const nextPayment = [...schedule].filter((i) => i.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+  // The cron charges these itself, on the due date or the next morning — so
+  // the date it lands on is a two-day window, not a single day.
+  const autoCharged = Boolean(
+    activePlan?.auto_charge && (activePlan.stored_card_token || activePlan.stored_bank_account_id),
+  );
 
   return (
     <div className="space-y-8">
@@ -98,7 +110,9 @@ export default async function DancerApplicationPage({
           {nextPayment ? (
             <div className="mt-2">
               <div className="font-semibold text-brand-ink">{money(nextPayment.amount)}</div>
-              <div className="text-sm text-brand-ink/60">{formatDateShort(nextPayment.date)}</div>
+              <div className="text-sm text-brand-ink/60">
+                {autoCharged ? formatChargeWindowShort(nextPayment.date) : formatDateShort(nextPayment.date)}
+              </div>
             </div>
           ) : (
             <div className="mt-2 text-sm text-brand-ink/50">Nothing scheduled</div>

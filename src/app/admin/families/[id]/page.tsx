@@ -6,7 +6,15 @@ import { summarizePayments, type PayStatus } from '@/lib/admin/paymentStatus';
 import { findDueInstallment, allocatePayments } from '@/lib/billing/allocation';
 import { withCardFee, cardFeeOn } from '@/lib/billing/cardFee';
 import { todayIso, toEasternDateIso } from '@/lib/billing/dueDates';
-import { money, formatDateShort, formatDateLong, formatTime, formatTimestamp, formatTimestampShort } from '@/lib/format';
+import {
+  money,
+  formatDateShort,
+  formatDateLong,
+  formatChargeWindowShort,
+  formatTime,
+  formatTimestamp,
+  formatTimestampShort,
+} from '@/lib/format';
 import { POLICIES } from '@/lib/consents/policies';
 import { SubmitButton, inputClass } from '@/components/ui';
 import { CustomPlanForm } from './CustomPlanForm';
@@ -73,6 +81,12 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
   // paid, and put the retry control on one of them.
   const installments = allocatePayments(activePlan?.installment_schedule, d.payments ?? [], today, activePlan?.id);
   const dueInstallment = findDueInstallment(activePlan?.installment_schedule, d.payments ?? [], today, activePlan?.id);
+  // Anything the cron charges itself lands on the due date or the next
+  // morning, so its date is shown as that two-day window.
+  const planAutoCharged = Boolean(
+    activePlan?.auto_charge &&
+      (activePlan.stored_card_token || (activePlan.stored_bank_customer_id && activePlan.stored_bank_account_id)),
+  );
   const consentByType = new Map((d.consents ?? []).map((c: any) => [c.type, c.agreed_at]));
 
   const { data: classesData } = await supabase
@@ -147,7 +161,8 @@ export default async function DancerDetailPage({ params }: { params: Promise<{ i
                 return (
                   <li key={i.index} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
                     <span className="text-brand-ink">
-                      {formatDateShort(i.date)} — {money(i.amount)}
+                      {!i.settled && planAutoCharged ? formatChargeWindowShort(i.date) : formatDateShort(i.date)} —{' '}
+                      {money(i.amount)}
                     </span>
                     <span className="flex items-center gap-3">
                       <span
