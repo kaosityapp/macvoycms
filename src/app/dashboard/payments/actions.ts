@@ -12,6 +12,7 @@ import {
   getAchTransaction,
 } from '@/lib/integrations/helcim';
 import { sendAdminAlert } from '@/lib/integrations/adminAlert';
+import { saveBankMandate } from '@/lib/billing/bankMandate';
 
 export interface StartPaymentResult {
   error?: string;
@@ -178,16 +179,16 @@ export async function confirmPaymentClientSide(
 
       // "Save for automatic payments" — store recurring capability now; it
       // doesn't depend on whether THIS specific withdrawal ends up settling.
-      if (intent.save_card && intent.payment_plan_id && bankAccountId && bankCustomerId) {
-        await admin
-          .from('payment_plans')
-          .update({
-            stored_bank_customer_id: bankCustomerId,
-            stored_bank_account_id: bankAccountId,
-            auto_charge: true,
-          })
-          .eq('id', intent.payment_plan_id);
-      }
+      // If the customer id isn't resolvable yet, the ACH settlement poller
+      // tries again rather than the mandate being lost here.
+      await saveBankMandate(admin, {
+        intentId: intent.id,
+        planId: intent.payment_plan_id,
+        saveCard: intent.save_card,
+        bankAccountId,
+        customerId: bankCustomerId,
+        customerCode,
+      });
     }
     revalidatePath('/dashboard/payments');
     return { ok: true, settling: true };

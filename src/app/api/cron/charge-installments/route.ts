@@ -17,6 +17,7 @@ import {
   type AdminClient,
 } from '@/lib/billing/autoCharge';
 import { sendPaymentReceipt } from '@/lib/billing/receipts';
+import { saveBankMandate } from '@/lib/billing/bankMandate';
 import { sendAdminAlert, sendPlainEmail } from '@/lib/integrations/adminAlert';
 import { todayIso } from '@/lib/billing/dueDates';
 import { money } from '@/lib/format';
@@ -442,16 +443,14 @@ async function reconcileAchFallback(
       })
       .eq('id', intent.id);
 
-    if (intent.save_card && intent.payment_plan_id && achTxn.bankAccountId && bankCustomerId) {
-      await admin
-        .from('payment_plans')
-        .update({
-          stored_bank_customer_id: bankCustomerId,
-          stored_bank_account_id: achTxn.bankAccountId,
-          auto_charge: true,
-        })
-        .eq('id', intent.payment_plan_id);
-    }
+    await saveBankMandate(admin, {
+      intentId: intent.id,
+      planId: intent.payment_plan_id,
+      saveCard: intent.save_card,
+      bankAccountId: achTxn.bankAccountId,
+      customerId: bankCustomerId,
+      customerCode: achTxn.customerCode ?? null,
+    });
 
     await sendPaymentReceipt(admin, intent.family_member_id, Number(achTxn.amount || intent.amount), achTxn.id, intent.created_at);
     await sendAdminAlert(`Missed bank payment confirmation recovered — ${dancerName}`, [
@@ -487,7 +486,9 @@ async function reconcileAchFallback(
 async function checkAchSettlements(admin: AdminClient): Promise<{ id: string; outcome: string }[]> {
   const { data: settling } = await admin
     .from('payment_intents')
-    .select('id, family_member_id, payment_plan_id, installment_index, amount, category, reference, created_at, helcim_transaction_id')
+    .select(
+      'id, family_member_id, payment_plan_id, installment_index, amount, category, reference, created_at, helcim_transaction_id, save_card, bank_account_id, bank_customer_id, bank_customer_code',
+    )
     .eq('status', 'settling');
 
   const out: { id: string; outcome: string }[] = [];
@@ -523,8 +524,34 @@ async function checkAchSettlements(admin: AdminClient): Promise<{ id: string; ou
         })
         .then(() => {}, () => {}); // idempotent — ignore unique-violation on a re-poll
       await admin.from('payment_intents').update({ status: 'completed' }).eq('id', intent.id);
+
+      // Second chance at the standing authorisation. At checkout, Helcim may
+      // not yet answer for the customer code it just issued, and a family who
+      // asked to save their bank account was quietly left with nothing on
+      // file. By now the customer certainly exists, so try again.
+      const mandate = await saveBankMandate(admin, {
+        intentId: intent.id,
+        planId: intent.payment_plan_id,
+        saveCard: intent.save_card,
+        bankAccountId: intent.bank_account_id ?? txn.bankAccountId,
+        customerId: intent.bank_customer_id,
+        customerCode: intent.bank_customer_code ?? txn.customerCode ?? null,
+      });
+      if (mandate === 'unresolved') {
+        // Worth an admin's attention: they ticked the box, and until this
+        // resolves nothing will be collected from them automatically.
+        const dancerName = await dancerNameFor(admin, intent.family_member_id);
+        await sendAdminAlert(`Couldn't save the bank account for ${dancerName}`, [
+          `${dancerName}'s bank payment settled, but their "save for automatic payments" choice could not be stored — Helcim would not resolve a customer id for ${intent.bank_customer_code ?? 'their payment'}.`,
+          `Nothing will be charged automatically for them until that is sorted. It will be retried on the next settling payment, or their account can be set up manually from the dancer's admin page.`,
+        ]);
+      }
+
       await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.id, intent.created_at);
-      out.push({ id: intent.id, outcome: 'settled — payment recorded' });
+      out.push({
+        id: intent.id,
+        outcome: `settled — payment recorded${mandate === 'saved' ? ', bank account saved' : mandate === 'unresolved' ? ', bank account could NOT be saved' : ''}`,
+      });
       continue;
     }
 
