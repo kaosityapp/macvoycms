@@ -33,10 +33,13 @@ export function SiteNav() {
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
   const account = authed ? { href: '/dashboard', label: 'My Account' } : { href: '/login', label: 'Login' };
 
-  const registerBtn =
-    'rounded-md bg-brand-pink px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-pinkdark';
-  const accountBtn =
-    'rounded-md border border-brand-ink px-4 py-2 text-sm font-semibold text-brand-ink transition hover:bg-brand-ink hover:text-white';
+  // Padding is applied at each call site, not baked in here: the mobile bar
+  // carries Register *and* Login next to the menu toggle, which needs the
+  // tighter px-3 to survive a 360px phone. Two px-* classes on one element
+  // would be a coin toss over which wins.
+  const btnBase = 'rounded-md py-2 text-sm font-semibold transition';
+  const registerBtn = `${btnBase} bg-brand-pink text-white hover:bg-brand-pinkdark`;
+  const accountBtn = `${btnBase} border border-brand-ink text-brand-ink hover:bg-brand-ink hover:text-white`;
 
   return (
     <nav className="text-sm">
@@ -57,10 +60,10 @@ export function SiteNav() {
           ))}
         </ul>
         <div className="ml-3 flex items-center gap-2">
-          <Link href="/register" className={registerBtn}>
+          <Link href="/register" className={`${registerBtn} px-4`}>
             Register
           </Link>
-          <Link href={account.href} className={accountBtn}>
+          <Link href={account.href} className={`${accountBtn} px-4`}>
             {account.label}
           </Link>
         </div>
@@ -68,9 +71,14 @@ export function SiteNav() {
 
       {/* Mobile */}
       <div className="lg:hidden">
-        <div className="flex items-center gap-2">
-          <Link href="/register" className={registerBtn}>
+        <div className="flex items-center gap-1.5">
+          <Link href="/register" className={`${registerBtn} px-3`}>
             Register
+          </Link>
+          {/* Login sits in the bar itself, not behind the menu — families were
+              missing it entirely when it only existed inside the hamburger. */}
+          <Link href={account.href} className={`${accountBtn} px-3`}>
+            {account.label}
           </Link>
           <button
             type="button"
@@ -99,15 +107,6 @@ export function SiteNav() {
                 </Link>
               </li>
             ))}
-            <li className="pt-2">
-              <Link
-                href={account.href}
-                onClick={() => setOpen(false)}
-                className="block rounded-md border border-brand-ink px-3 py-2 text-center font-semibold text-brand-ink"
-              >
-                {account.label}
-              </Link>
-            </li>
           </ul>
         )}
       </div>
