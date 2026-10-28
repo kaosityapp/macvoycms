@@ -133,6 +133,35 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
     ? (existingPlan.installment_schedule as { date: string; amount: number }[])
     : [];
 
+  // A dancer's first plan has no earlier row to carry a payment method from,
+  // so fall back to one a sibling's (or a child's, for a parent joining an
+  // adult class) active plan already holds. Without this the new plan sat
+  // with no card and auto-charge off, and the family got "URGENT: payment
+  // due" reminders for fees they expected to go on the card on file.
+  let paymentSource = existingPlan;
+  const hasMethod = (p: typeof existingPlan) =>
+    !!p && (!!p.stored_card_token || !!(p.stored_bank_customer_id && p.stored_bank_account_id));
+  if (!hasMethod(existingPlan)) {
+    const { data: member } = await supabase
+      .from('family_members')
+      .select('family_account_id')
+      .eq('id', memberId)
+      .maybeSingle();
+    if (member?.family_account_id) {
+      const { data: familyPlans } = await supabase
+        .from('payment_plans')
+        .select(
+          'id, installment_schedule, stored_card_token, stored_customer_code, stored_bank_customer_id, stored_bank_account_id, auto_charge, family_member:family_members!inner(family_account_id)',
+        )
+        .eq('family_member.family_account_id', member.family_account_id)
+        .neq('family_member_id', memberId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      const sibling = (familyPlans ?? []).find((p) => hasMethod(p as typeof existingPlan));
+      if (sibling) paymentSource = sibling as unknown as typeof existingPlan;
+    }
+  }
+
   const schedule = [...existingSchedule, ...newRows].sort((a, b) => a.date.localeCompare(b.date));
 
   const totalField = Number(formData.get('total_amount'));
@@ -159,11 +188,11 @@ export async function createCustomPlan(_prev: ActionState, formData: FormData): 
       // The family's saved card and their opt-in belong to the family, not to
       // a plan row. Leaving them behind silently switched off auto-charge and
       // took away the admin's own Retry button, with nothing saying why.
-      stored_card_token: existingPlan?.stored_card_token ?? null,
-      stored_customer_code: existingPlan?.stored_customer_code ?? null,
-      stored_bank_customer_id: existingPlan?.stored_bank_customer_id ?? null,
-      stored_bank_account_id: existingPlan?.stored_bank_account_id ?? null,
-      auto_charge: existingPlan?.auto_charge ?? false,
+      stored_card_token: paymentSource?.stored_card_token ?? null,
+      stored_customer_code: paymentSource?.stored_customer_code ?? null,
+      stored_bank_customer_id: paymentSource?.stored_bank_customer_id ?? null,
+      stored_bank_account_id: paymentSource?.stored_bank_account_id ?? null,
+      auto_charge: paymentSource?.auto_charge ?? false,
     })
     .select('id')
     .single();
