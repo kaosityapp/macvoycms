@@ -38,6 +38,9 @@ export interface Installment {
    *  on and a card or bank account is on file. Those show a two-day window
    *  instead of a single date; see formatChargeWindowLong in lib/format.ts. */
   autoCharged: boolean;
+  /** This plan has its own card or bank account on file. When it doesn't,
+   *  Pay Now offers the family's saved one (see getFamilySavedMethod). */
+  hasPaymentMethod: boolean;
 }
 
 export interface Receipt {
@@ -159,9 +162,8 @@ export async function getUpcomingInstallments(
       // (by card, bank, or a manual entry) must not keep a live "Pay Now"
       // button, and one the family skipped must not disappear behind the
       // others' payments.
-      const autoCharged = Boolean(
-        plan.auto_charge && (plan.stored_card_token || plan.stored_bank_account_id),
-      );
+      const hasPaymentMethod = Boolean(plan.stored_card_token || plan.stored_bank_account_id);
+      const autoCharged = Boolean(plan.auto_charge && hasPaymentMethod);
       for (const inst of outstandingInstallments(plan.installment_schedule, plan.payments ?? [], todayIso)) {
         out.push({
           memberId: m.id,
@@ -173,6 +175,7 @@ export async function getUpcomingInstallments(
           amount: inst.amount,
           isOverdue: inst.isOverdue,
           autoCharged,
+          hasPaymentMethod,
         });
       }
     }
@@ -204,6 +207,41 @@ export async function getReceipts(accountId: string): Promise<Receipt[]> {
   }
   out.sort((a, b) => (b.paidAt ?? '').localeCompare(a.paidAt ?? ''));
   return out;
+}
+
+export interface FamilySavedMethod {
+  kind: 'card' | 'bank';
+  /** Whose plan it was saved on, so the family can tell which card it is. */
+  memberFirstName: string;
+}
+
+/**
+ * The card or bank account already saved on one of this family's active
+ * plans, if any. A family nearly always pays for every dancer with the same
+ * card, so a dancer added later (a sibling, or a parent joining an adult
+ * class) is offered this one by default instead of re-entering it.
+ */
+export async function getFamilySavedMethod(accountId: string): Promise<FamilySavedMethod | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('family_members')
+    .select('first_name, payment_plans(status, created_at, stored_card_token, stored_bank_account_id)')
+    .eq('family_account_id', accountId);
+
+  let best: (FamilySavedMethod & { createdAt: string }) | null = null;
+  for (const m of (data ?? []) as any[]) {
+    for (const plan of m.payment_plans ?? []) {
+      if (plan.status !== 'active' || !(plan.stored_card_token || plan.stored_bank_account_id)) continue;
+      // Most recently saved wins, matching savedMethodSourcePlan in actions.ts.
+      if (best && best.createdAt >= plan.created_at) continue;
+      best = {
+        kind: plan.stored_card_token ? 'card' : 'bank',
+        memberFirstName: m.first_name,
+        createdAt: plan.created_at,
+      };
+    }
+  }
+  return best ? { kind: best.kind, memberFirstName: best.memberFirstName } : null;
 }
 
 export interface AutoChargePlan {

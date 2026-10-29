@@ -4,6 +4,7 @@ import {
   getReceipts,
   getAutoChargePlans,
   getActivePlanBreakdowns,
+  getFamilySavedMethod,
 } from '@/lib/dashboard';
 import { isHelcimConfigured } from '@/lib/integrations/helcim';
 import { todayIso } from '@/lib/billing/dueDates';
@@ -27,11 +28,12 @@ export default async function PaymentsPage() {
   }
 
   const today = todayIso();
-  const [upcoming, receipts, autoChargePlans, planBreakdowns] = await Promise.all([
+  const [upcoming, receipts, autoChargePlans, planBreakdowns, familySavedMethod] = await Promise.all([
     getUpcomingInstallments(account.id, today),
     getReceipts(account.id),
     getAutoChargePlans(account.id),
     getActivePlanBreakdowns(account.id),
+    getFamilySavedMethod(account.id),
   ]);
   const canPayOnline = isHelcimConfigured();
   const upcomingTotal = upcoming.reduce((sum, i) => sum + i.amount, 0);
@@ -147,6 +149,8 @@ export default async function PaymentsPage() {
                     paymentPlanId={item.planId}
                     installmentIndex={item.installmentIndex}
                     amount={item.amount}
+                    savedMethod={item.hasPaymentMethod ? null : familySavedMethod}
+                    feePercent={cardFeePercent()}
                   />
                 ) : (
                   <button

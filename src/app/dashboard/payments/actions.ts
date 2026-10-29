@@ -13,6 +13,9 @@ import {
 } from '@/lib/integrations/helcim';
 import { sendAdminAlert } from '@/lib/integrations/adminAlert';
 import { saveBankMandate } from '@/lib/billing/bankMandate';
+import { outstandingInstallments } from '@/lib/billing/allocation';
+import { attemptInstallmentCharge } from '@/lib/billing/autoCharge';
+import { todayIso } from '@/lib/billing/dueDates';
 
 export interface StartPaymentResult {
   error?: string;
@@ -200,6 +203,119 @@ export async function confirmPaymentClientSide(
 
   revalidatePath('/dashboard/payments');
   return { ok: true };
+}
+
+export interface PaySavedResult {
+  error?: string;
+  /** Bank withdrawal created; settlement is confirmed later by the cron. */
+  settling?: boolean;
+}
+
+/**
+ * "Pay with the saved card" for a dancer whose plan has no card of its own —
+ * a sibling, or a parent who joined an adult class. Copies the card (or bank
+ * account) already saved on another of the family's active plans onto this
+ * one, turns auto-charge on so later installments follow, and charges this
+ * installment now. The card itself never passes through the browser: the
+ * family picks "saved card" and we look it up here.
+ */
+export async function payWithFamilySavedMethod(input: {
+  paymentPlanId: string;
+  installmentIndex: number;
+}): Promise<PaySavedResult> {
+  if (!isHelcimConfigured()) return { error: 'Online payment is not available yet.' };
+
+  const supabase = await createClient();
+  // RLS-scoped read: only returns the plan if it belongs to the caller's own
+  // family. Everything after uses the admin client (no owner UPDATE policy on
+  // payment_plans — see confirmPaymentClientSide), with ownership proven here.
+  const { data: plan } = await supabase
+    .from('payment_plans')
+    .select(
+      'id, family_member_id, status, installment_schedule, stored_card_token, stored_bank_account_id, family_member:family_members(family_account_id)',
+    )
+    .eq('id', input.paymentPlanId)
+    .maybeSingle();
+  if (!plan || plan.status !== 'active') return { error: 'Plan not found.' };
+  const familyAccountId = (plan as any).family_member?.family_account_id as string | undefined;
+  if (!familyAccountId) return { error: 'Plan not found.' };
+
+  const admin = createAdminClient();
+
+  // The amount comes from the schedule, never the browser, and only for an
+  // installment that's still owing.
+  const { data: paidPayments } = await admin
+    .from('payments')
+    .select('amount, paid_at, installment_index')
+    .eq('payment_plan_id', plan.id)
+    .not('paid_at', 'is', null);
+  const schedule = Array.isArray(plan.installment_schedule) ? (plan.installment_schedule as any) : [];
+  const due = outstandingInstallments(schedule, paidPayments ?? [], todayIso()).find(
+    (i) => i.index === input.installmentIndex,
+  );
+  if (!due) return { error: 'That installment has already been paid.' };
+
+  // Same duplicate-charge guard as the cron and the admin Retry button.
+  const { data: inFlight } = await admin
+    .from('payment_intents')
+    .select('id')
+    .eq('payment_plan_id', plan.id)
+    .eq('installment_index', due.index)
+    .in('status', ['client_confirmed', 'settling', 'completed']);
+  if ((inFlight ?? []).length > 0) return { error: 'That installment is already being processed.' };
+
+  let method = {
+    stored_card_token: plan.stored_card_token as string | null,
+    stored_customer_code: null as string | null,
+    stored_bank_customer_id: null as string | null,
+    stored_bank_account_id: plan.stored_bank_account_id as string | null,
+  };
+  if (!method.stored_card_token && !method.stored_bank_account_id) {
+    const { data: familyPlans } = await admin
+      .from('payment_plans')
+      .select(
+        'stored_card_token, stored_customer_code, stored_bank_customer_id, stored_bank_account_id, family_member:family_members!inner(family_account_id)',
+      )
+      .eq('family_member.family_account_id', familyAccountId)
+      .eq('status', 'active')
+      .neq('id', plan.id)
+      .order('created_at', { ascending: false });
+    const source = (familyPlans ?? []).find(
+      (p) => p.stored_card_token || (p.stored_bank_customer_id && p.stored_bank_account_id),
+    );
+    if (!source) return { error: 'No saved card found for your family — choose "Enter a new card" instead.' };
+    method = {
+      stored_card_token: source.stored_card_token,
+      stored_customer_code: source.stored_customer_code,
+      stored_bank_customer_id: source.stored_bank_customer_id,
+      stored_bank_account_id: source.stored_bank_account_id,
+    };
+  }
+
+  await admin
+    .from('payment_plans')
+    .update({ ...method, auto_charge: true })
+    .eq('id', plan.id);
+
+  const outcome = await attemptInstallmentCharge(
+    admin,
+    { id: plan.id, family_member_id: plan.family_member_id, ...method },
+    due.index,
+    due.amount,
+    due.date,
+    1,
+  );
+
+  revalidatePath('/dashboard/payments');
+  if ('error' in outcome) return { error: outcome.error };
+  if (outcome.settling) return { settling: true };
+  if (outcome.approved) return {};
+  if (outcome.declined) {
+    return {
+      error: `Your saved card was declined (${outcome.declineReason ?? 'declined by your bank'}). Nothing was charged — choose "Enter a new card" to pay another way.`,
+    };
+  }
+  return { error: 'The payment could not be processed. Nothing was charged — please try again shortly.' };
 }
 
 /**

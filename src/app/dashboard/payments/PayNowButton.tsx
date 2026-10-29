@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { startPayment, confirmPaymentClientSide } from './actions';
+import { startPayment, confirmPaymentClientSide, payWithFamilySavedMethod } from './actions';
 import { money } from '@/lib/format';
+import type { FamilySavedMethod } from '@/lib/dashboard';
 
 const SCRIPT_SRC = 'https://secure.helcim.app/helcim-pay/services/start.js';
 
@@ -36,16 +37,29 @@ export function PayNowButton({
   paymentPlanId,
   installmentIndex,
   amount,
+  savedMethod,
+  feePercent,
 }: {
   memberId: string;
   paymentPlanId: string;
   installmentIndex: number;
   amount: number;
+  /** The family's card/bank already on file, offered when this dancer's plan
+   *  has none of its own. Null when the plan has one, or the family doesn't. */
+  savedMethod: FamilySavedMethod | null;
+  feePercent: number;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
+  // Default to the card the family already uses — re-entering it is the
+  // exception (a parent paying their own class on a different card).
+  const [useSaved, setUseSaved] = useState(true);
   const listenerRef = useRef<((e: MessageEvent) => void) | null>(null);
+  const offerSaved = savedMethod !== null;
+  const savedLabel = savedMethod
+    ? `Saved ${savedMethod.kind === 'card' ? 'card' : 'bank account'} (used for ${savedMethod.memberFirstName})`
+    : '';
 
   useEffect(() => {
     return () => {
@@ -53,7 +67,21 @@ export function PayNowButton({
     };
   }, []);
 
+  async function handlePaySaved() {
+    setPhase('confirming');
+    setError(null);
+    const result = await payWithFamilySavedMethod({ paymentPlanId, installmentIndex });
+    if (result.error) {
+      setError(result.error);
+      setPhase('error');
+      return;
+    }
+    setPhase(result.settling ? 'settling' : 'done');
+    setTimeout(() => router.refresh(), 1200);
+  }
+
   async function handlePay() {
+    if (offerSaved && useSaved) return handlePaySaved();
     setPhase('starting');
     setError(null);
 
@@ -116,13 +144,40 @@ export function PayNowButton({
     );
   }
 
+  const busy = phase === 'starting' || phase === 'open' || phase === 'confirming';
+
   return (
     <div className="flex flex-col items-end gap-1">
+      {offerSaved && (
+        <fieldset className="flex flex-col items-start gap-1 text-sm text-brand-ink" disabled={busy}>
+          <legend className="sr-only">Payment method</legend>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name={`method-${paymentPlanId}-${installmentIndex}`}
+              checked={useSaved}
+              onChange={() => setUseSaved(true)}
+              className="accent-brand-pink"
+            />
+            {savedLabel}
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name={`method-${paymentPlanId}-${installmentIndex}`}
+              checked={!useSaved}
+              onChange={() => setUseSaved(false)}
+              className="accent-brand-pink"
+            />
+            Enter a new card or bank account
+          </label>
+        </fieldset>
+      )}
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={handlePay}
-          disabled={phase === 'starting' || phase === 'open' || phase === 'confirming'}
+          disabled={busy}
           className="rounded-md bg-brand-pink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {phase === 'starting'
@@ -132,7 +187,13 @@ export function PayNowButton({
               : `Pay ${money(amount)}`}
         </button>
       </div>
-      <span className="text-xs text-brand-ink/50">Your card is saved on file for future installments.</span>
+      <span className="text-xs text-brand-ink/50">
+        {offerSaved && useSaved
+          ? savedMethod?.kind === 'card'
+            ? `Charged now plus the ${feePercent}% card fee; future installments go on the same card automatically.`
+            : 'Withdrawn now; future installments come from the same account automatically.'
+          : 'Your card is saved on file for future installments.'}
+      </span>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>
   );
