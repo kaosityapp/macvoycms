@@ -1,62 +1,83 @@
-# Deploying to Vercel
+# Deploying
 
-The repo is git-ready with a clean initial commit. These are the steps that
-need your GitHub + Vercel accounts (they can't be automated headlessly).
+The site runs on Vercel (project **`macvoycms`**, team `nick-2434s-projects`)
+and is served at https://www.macvoyirishdance.com, https://macvoyirishdance.com
+and https://macvoycms.vercel.app.
 
-## 1. Push to GitHub
+## How a change goes live
 
-Create an empty repo (private) under the account/org that will own this, then:
+**Push to `main` and it deploys.** The Vercel project is connected to
+`github.com/kaosityapp/macvoycms`, so every push to `main` builds and
+publishes production automatically (about a minute). Nothing else to run.
 
 ```bash
-git remote add origin https://github.com/<you>/macvoy-platform.git
-git push -u origin main
+git push origin main
 ```
 
-## 2. Import into Vercel
+To check that it went out:
 
-1. Vercel dashboard → **Add New → Project** → import the GitHub repo.
-2. Framework preset auto-detects **Next.js**. Leave build/output defaults.
-3. Before the first deploy, add the environment variables below.
+```bash
+npx vercel ls macvoycms
+```
 
-## 3. Environment variables (Vercel → Project → Settings → Environment Variables)
+The newest row should be **Ready** / **Production**. If a build fails, see
+its log with `npx vercel inspect <deployment-url> --logs`.
 
-Copy these from your local `.env.local`, with **one change**: point
-`NEXT_PUBLIC_SITE_URL` at the deployed URL.
+### Manual deploy (fallback only)
+
+If GitHub or the connection is ever down, deploy the local checkout directly:
+
+```bash
+npx vercel --prod --yes
+```
+
+If that says **"Not authorized"** while `npx vercel ls` still works, the CLI
+login has gone stale — run `npx vercel logout`, then `npx vercel login` and
+approve it in the browser.
+
+There is no Skew Protection (paid option, declined). A family with the site
+open during a deploy may hit a stale form once; `global-error.tsx` reloads
+the page to recover.
+
+## Environment variables
+
+Set in Vercel → Project → Settings → Environment Variables (Production).
+Changing one only takes effect on the **next** deploy.
 
 | Variable | Notes |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | same as local |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same as local |
-| `SUPABASE_SERVICE_ROLE_KEY` | secret — same as local |
-| `NEXT_PUBLIC_SITE_URL` | **`https://<your-vercel-domain>`** (or custom domain) |
-| `HELCIM_API_TOKEN` / `HELCIM_WEBHOOK_SECRET` | when wiring payments |
-| `LOOPS_API_KEY` | for email |
-| `LOOPS_FROM_TRANSACTIONAL` / `LOOPS_FROM_ANNOUNCEMENTS` | sending identities |
-| `LOOPS_TID_REGISTRATION` / `LOOPS_TID_ANNOUNCEMENT` / `LOOPS_TID_RECEIPT` | Loops template ids |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project `xvdyfrlgrhebiiymvddd` |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret |
+| `NEXT_PUBLIC_SITE_URL` | `https://www.macvoyirishdance.com` |
+| `HELCIM_API_TOKEN` / `HELCIM_WEBHOOK_SECRET` | payments; the secret is the webhook integration's verifier token |
+| `CRON_SECRET` | protects `/api/cron/charge-installments` (Vercel sends it automatically) |
+| `RESEND_API_KEY` | receipts, reminders and admin alerts |
+| `ADMIN_ALERT_EMAILS` | who gets admin alerts |
+| `ADMIN_ALERT_FROM` | optional — defaults to `alerts@macvoyirishdance.com` |
+| `LOOPS_API_KEY` / `LOOPS_FROM_TRANSACTIONAL` / `LOOPS_FROM_ANNOUNCEMENTS` | Loops sending |
 | `NEXT_PUBLIC_SENTRY_DSN` | error monitoring |
-| `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` | optional — enables readable stack traces (source-map upload) |
 
-## 4. Point Supabase Auth at the deployed domain
+In `.env.local`, wrap any value containing `$` or `#` in double quotes and
+escape each `$` as `\$`, or Next silently mangles it.
 
-Supabase dashboard → **Authentication → URL Configuration**:
-- **Site URL**: `https://<your-vercel-domain>`
-- **Redirect URLs**: add `https://<your-vercel-domain>/auth/callback`
+## Scheduled job
 
-(Without this, password-reset links won't complete.)
+`vercel.json` runs `/api/cron/charge-installments` daily at 13:00 UTC
+(9am Toronto in summer, 8am in winter). It charges due installments on
+saved cards/bank accounts and sends reminders.
 
-## 5. Post-deploy wiring
+## Outside Vercel
 
-- **Helcim webhook**: in Helcim, set the webhook URL to
-  `https://<your-vercel-domain>/api/webhooks/helcim` and copy its verifier
-  secret into `HELCIM_WEBHOOK_SECRET`. (Handler is added in the Helcim phase.)
-- **Loops sending domain**: verify `macvoyirishdance.com` in Loops (DNS records)
-  and create the transactional templates, then fill the `LOOPS_TID_*` vars.
-- **Custom domain**: when ready to go live, add `macvoyirishdance.com` in Vercel
-  and update `NEXT_PUBLIC_SITE_URL` + the Supabase URLs to match.
+- **Supabase Auth → URL Configuration**: Site URL and the `/auth/callback`
+  redirect must point at the live domain, or password-reset links won't
+  complete. Only changeable in the Supabase dashboard.
+- **Helcim webhook**: Card Transactions events deliver to
+  `https://hooks.macvoyirishdance.com`, which reaches `/api/webhooks/helcim`.
 
-## Schema changes after launch
+## Database changes
 
-Migrations live in `supabase/migrations/`. They've already been applied to the
-`macvoy` project. For future changes, add a new numbered migration and apply it
-(via the Supabase SQL editor or CLI), then regenerate types with
-`npm run db:types`.
+Migrations live in `supabase/migrations/` (numbered, already applied to the
+live project). For a schema change, add the next numbered migration, apply
+it to the live project (Supabase SQL editor or CLI), then regenerate
+`src/lib/types/database.ts`. Apply the migration **before** pushing code that
+depends on it — the push deploys immediately.
