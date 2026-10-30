@@ -357,7 +357,10 @@ async function checkCardReconciliation(admin: AdminClient): Promise<{ id: string
         .from('payment_intents')
         .update({ status: 'completed', helcim_transaction_id: txn.transactionId })
         .eq('id', intent.id);
-      await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.transactionId);
+      await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.transactionId, undefined, {
+        planId: intent.payment_plan_id,
+        index: intent.installment_index,
+      });
       await sendAdminAlert(`Missed webhook recovered — ${dancerName}`, [
         `${dancerName}'s payment of ${money(Number(txn.amount || intent.amount))} was actually approved at Helcim, but our webhook never recorded it — recovered by the daily reconciliation check instead.`,
         `Worth checking the Helcim webhook is still correctly configured (Deliver URL https://hooks.macvoyirishdance.com, event Card Transactions) if this keeps happening.`,
@@ -452,7 +455,10 @@ async function reconcileAchFallback(
       customerCode: achTxn.customerCode ?? null,
     });
 
-    await sendPaymentReceipt(admin, intent.family_member_id, Number(achTxn.amount || intent.amount), achTxn.id, intent.created_at);
+    await sendPaymentReceipt(admin, intent.family_member_id, Number(achTxn.amount || intent.amount), achTxn.id, intent.created_at, {
+      planId: intent.payment_plan_id,
+      index: intent.installment_index,
+    });
     await sendAdminAlert(`Missed bank payment confirmation recovered — ${dancerName}`, [
       `${dancerName}'s bank payment of ${money(Number(achTxn.amount || intent.amount))} settled successfully at Helcim, but we never recorded it — likely because they closed the page right after paying, before it could confirm here.`,
       `Recovered by the daily reconciliation check instead — no action needed, but worth knowing this happened.`,
@@ -547,7 +553,10 @@ async function checkAchSettlements(admin: AdminClient): Promise<{ id: string; ou
         ]);
       }
 
-      await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.id, intent.created_at);
+      await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.id, intent.created_at, {
+        planId: intent.payment_plan_id,
+        index: intent.installment_index,
+      });
       out.push({
         id: intent.id,
         outcome: `settled — payment recorded${mandate === 'saved' ? ', bank account saved' : mandate === 'unresolved' ? ', bank account could NOT be saved' : ''}`,

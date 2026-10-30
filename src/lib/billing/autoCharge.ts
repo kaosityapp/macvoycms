@@ -18,6 +18,18 @@ export type AdminClient = SupabaseClient<Database>;
 export interface InstallmentSchedule {
   date: string;
   amount: number;
+  /**
+   * Set when one charge pays for more than this plan's own dancer — e.g.
+   * siblings billed together so the card is hit once. Lists what each part
+   * is for (pre-fee amounts) so the receipt can name everyone it covers.
+   */
+  covers?: InstallmentCover[];
+}
+
+export interface InstallmentCover {
+  dancer: string;
+  item: string;
+  amount: number;
 }
 
 export interface RecurringPlan {

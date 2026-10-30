@@ -129,7 +129,10 @@ export async function POST(request: NextRequest) {
     // Receipt to the family — Helcim's own account notifications only go to
     // the merchant contact (Debbie), not the customer, so this is the only
     // thing that actually emails the person who paid.
-    await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.transactionId);
+    await sendPaymentReceipt(admin, intent.family_member_id, Number(txn.amount || intent.amount), txn.transactionId, undefined, {
+      planId: intent.payment_plan_id,
+      index: intent.installment_index,
+    });
 
     if (isDuplicateCharge) {
       const dancerName = await dancerNameFor(admin, intent.family_member_id);
